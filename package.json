@@ -1,0 +1,25 @@
+{
+  "name": "tpdc-engine",
+  "version": "0.1.0",
+  "description": "Runtime execution engine for TPDC capabilities",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "tpdc-engine": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "start": "node dist/cli.js",
+    "install-capability": "node dist/cli.js install-capability",
+    "list-capabilities": "node dist/cli.js list-capabilities",
+    "run-capability": "node dist/cli.js run-capability"
+  },
+  "dependencies": {
+    "tpdc-protocols": "file:../tpdc-protocols"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
