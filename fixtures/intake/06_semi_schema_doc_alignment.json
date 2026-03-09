@@ -1,0 +1,7 @@
+{
+  "id": "semi-003",
+  "title": "Schemas and docs become misaligned",
+  "body": "Schemas and documentation become misaligned after changes. When a schema is updated, the corresponding documentation in README or agent definitions is not always updated. This causes confusion when onboarding or reviewing outputs.",
+  "source": "examples/vague_tickets.md#6",
+  "createdAt": "2026-03-08T00:00:00.000Z"
+}

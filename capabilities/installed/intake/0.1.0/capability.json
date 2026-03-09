@@ -1,0 +1,9 @@
+{
+  "id": "intake",
+  "version": "0.1.0",
+  "stage": "intake",
+  "inputArtifact": "RequestArtifact",
+  "outputArtifact": "IntakeArtifact",
+  "promptVersion": "v0.3.0",
+  "status": "evaluated"
+}

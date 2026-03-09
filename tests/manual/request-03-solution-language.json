@@ -1,0 +1,7 @@
+{
+  "id": "manual-003",
+  "title": "Add dashboard for failed uploads",
+  "body": "We should build a dashboard with filters and retry buttons so users can manage failed uploads. The system should show which uploads failed and allow retrying them individually.",
+  "source": "manual-test",
+  "createdAt": "2026-03-09T00:00:00Z"
+}

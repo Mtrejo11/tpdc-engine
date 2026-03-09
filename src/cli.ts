@@ -4,8 +4,30 @@ import * as fs from "fs";
 import * as path from "path";
 import { listInstalledCapabilities } from "./registry/loader";
 import { runCapability } from "./runtime/runCapability";
+import { ClaudeAdapter } from "./runtime/claude-adapter";
+import { ClaudeCodeAdapter } from "./runtime/claude-code-adapter";
+import { MockLLMAdapter, LLMAdapter } from "./runtime/types";
 
 const INSTALLED_DIR = path.resolve(__dirname, "../capabilities/installed");
+
+function createAdapter(): LLMAdapter {
+  const adapterEnv = process.env.TPDC_ADAPTER;
+  const model = process.env.TPDC_MODEL || undefined;
+
+  if (adapterEnv === "mock") {
+    console.log("[Engine] Using MockLLMAdapter (TPDC_ADAPTER=mock)");
+    return new MockLLMAdapter();
+  }
+
+  if (adapterEnv === "api" || process.env.ANTHROPIC_API_KEY) {
+    console.log(`[Engine] Using ClaudeAdapter (API)${model ? ` (${model})` : ""}`);
+    return new ClaudeAdapter({ model });
+  }
+
+  // Default: Claude Code CLI — uses Max subscription tokens
+  console.log(`[Engine] Using ClaudeCodeAdapter (CLI)${model ? ` (${model})` : ""}`);
+  return new ClaudeCodeAdapter({ model });
+}
 
 async function main() {
   const [command, ...args] = process.argv.slice(2);
@@ -89,9 +111,14 @@ async function main() {
         input = "";
       }
 
-      const result = await runCapability(capId, input);
+      const llm = createAdapter();
+      const result = await runCapability(capId, input, { llm });
       console.log("\n--- Result ---");
       console.log(JSON.stringify(result, null, 2));
+      if (result.validationErrors) {
+        console.error("\nValidation errors found — output may be incomplete.");
+        process.exitCode = 2;
+      }
       break;
     }
 

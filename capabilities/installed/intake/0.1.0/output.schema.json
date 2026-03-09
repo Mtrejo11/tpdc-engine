@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/intake/output",
+  "title": "IntakeArtifact",
+  "description": "Output artifact for the intake capability — a structured intake spec. Mirrors spec.schema.json.",
+  "type": "object",
+  "required": [
+    "title",
+    "source_ticket",
+    "problem_statement",
+    "affected_users",
+    "observable_symptom",
+    "acceptance_criteria"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "source_ticket": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "problem_statement": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "affected_users": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "observable_symptom": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "out_of_scope": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "assumptions": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "open_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "owner"],
+        "additionalProperties": false,
+        "properties": {
+          "question": { "type": "string" },
+          "owner": { "type": "string" }
+        }
+      },
+      "minItems": 1
+    },
+    "success_metrics": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "non_functional_constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1
+    }
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "id": "solution-002",
+  "title": "Implement retry logic for failed LLM calls",
+  "body": "Implement exponential backoff retry with jitter for all LLM API calls. Use a max of 3 retries. Add a circuit breaker pattern so we stop retrying after 5 consecutive failures.",
+  "source": "synthetic",
+  "createdAt": "2026-03-08T00:00:00.000Z"
+}

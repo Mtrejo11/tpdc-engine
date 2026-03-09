@@ -1,0 +1,7 @@
+{
+  "id": "manual-002",
+  "title": "Port Models Download feature from Pocket to HQ",
+  "body": "We need to bring the Models Download feature from Field Pocket into Field HQ. However the two apps have different storage apches, UI patterns, and permission rules. The request is still vague and should be converted into a structured intake spec with clear acceptance criteria and open questions.",
+  "source": "manual-test",
+  "createdAt": "2026-03-09T00:00:00Z"
+}

@@ -1,0 +1,7 @@
+{
+  "id": "semi-001",
+  "title": "Improve intake spec consistency",
+  "body": "Our intake specs are inconsistent across different runs. Some include success metrics while others skip them entirely. The team is confused about when fields are required vs optional.",
+  "source": "internal-feedback",
+  "createdAt": "2026-03-08T00:00:00.000Z"
+}

@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/intake/input",
+  "title": "RequestArtifact",
+  "description": "Input artifact for the intake capability — a raw ticket or request.",
+  "type": "object",
+  "required": ["id", "title", "body", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "body": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "string"
+    },
+    "projectContext": {
+      "type": "object",
+      "properties": {
+        "techStack": { "type": "string" },
+        "constraints": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "repo": { "type": "string" }
+      }
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

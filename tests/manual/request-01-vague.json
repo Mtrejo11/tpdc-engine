@@ -1,0 +1,7 @@
+{
+  "id": "manual-001",
+  "title": "Improve vague ticket intake",
+  "body": "Engineering tickets often start very vague and teams struggle to convert them into actionable work. We want a way to turn vague requests into structured specs with clear acceptance criteria.",
+  "source": "manual-test",
+  "createdAt": "2026-03-09T00:00:00Z"
+}

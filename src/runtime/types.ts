@@ -1,14 +1,28 @@
+export interface AdapterInfo {
+  adapterId: string;
+  modelId: string;
+  transport: "mock" | "api" | "cli";
+}
+
 export interface LLMAdapter {
+  readonly adapterInfo: AdapterInfo;
+  readonly modelId: string;
   complete(prompt: string, input: string): Promise<string>;
 }
 
 export class MockLLMAdapter implements LLMAdapter {
+  readonly modelId = "mock";
+  readonly adapterInfo: AdapterInfo = {
+    adapterId: "mock",
+    modelId: "mock",
+    transport: "mock",
+  };
+
   async complete(prompt: string, input: string): Promise<string> {
     console.log("[MockLLM] Prompt length:", prompt.length);
     console.log("[MockLLM] Input:", input.substring(0, 200));
     console.log("[MockLLM] Returning mock output — replace with real LLM adapter");
 
-    // Return a mock IntakeArtifact-shaped response for testing
     return JSON.stringify({
       title: "Mock intake from engine",
       source_ticket: "engine-test-001",

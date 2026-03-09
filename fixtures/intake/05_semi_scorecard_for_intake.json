@@ -1,0 +1,7 @@
+{
+  "id": "semi-002",
+  "title": "No scorecard for Intake",
+  "body": "There is no real scorecard for Intake yet — only a checklist. We need a rubric-based scorecard that can evaluate intake spec quality across dimensions like completeness, clarity, and testability of acceptance criteria.",
+  "source": "examples/vague_tickets.md#5",
+  "createdAt": "2026-03-08T00:00:00.000Z"
+}
