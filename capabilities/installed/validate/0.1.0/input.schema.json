@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/validate/input",
+  "title": "ExecutionArtifact",
+  "description": "Input for validate capability — execution results.",
+  "$ref": "../../capabilities/execute/output.schema.json"
+}

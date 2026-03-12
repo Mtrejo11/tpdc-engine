@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PatchArtifact",
+  "type": "object",
+  "required": ["sourceTicket", "planTitle", "executionMode", "executionStatus", "targetFiles", "changeSummary"],
+  "properties": {
+    "sourceTicket": { "type": "string", "minLength": 1 },
+    "planTitle": { "type": "string", "minLength": 1 },
+    "executionMode": { "const": "patch" },
+    "executionStatus": { "type": "string", "enum": ["completed", "partial", "blocked", "insufficient_context"] },
+    "targetFiles": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "changeSummary": { "type": "string", "minLength": 1 },
+    "patches": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["stepNumber", "filePath", "operation", "diff", "justification"],
+        "properties": {
+          "stepNumber": { "type": "integer", "minimum": 1 },
+          "filePath": { "type": "string", "minLength": 1 },
+          "operation": { "type": "string", "enum": ["create", "modify", "delete"] },
+          "diff": { "type": "string", "minLength": 1 },
+          "justification": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "assumptions": { "type": "array", "items": { "type": "string" } },
+    "risks": { "type": "array", "items": { "type": "string" } },
+    "blockedReason": { "type": "string" },
+    "missingContext": { "type": "array", "items": { "type": "string" } },
+    "notes": { "type": "string" }
+  }
+}

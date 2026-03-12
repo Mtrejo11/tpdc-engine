@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/execute/input",
+  "title": "PlanArtifact",
+  "description": "Input for execute capability — a decomposition plan.",
+  "$ref": "../../capabilities/decompose/output.schema.json"
+}

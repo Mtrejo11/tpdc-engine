@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/design/output",
+  "title": "SpecArtifact",
+  "description": "Output for design capability — a lightweight ADR focused on decision framing.",
+  "type": "object",
+  "required": ["title", "status", "date", "sourceTicket", "context", "decision", "scope", "validationPlan", "risks", "alternatives"],
+  "additionalProperties": false,
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "status": { "type": "string", "enum": ["proposed", "accepted", "superseded", "deprecated"] },
+    "date": { "type": "string", "minLength": 1 },
+    "sourceTicket": { "type": "string", "minLength": 1 },
+    "context": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "decision": { "type": "string", "minLength": 1 },
+    "scope": {
+      "type": "object",
+      "required": ["inScope", "outOfScope"],
+      "properties": {
+        "inScope": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "outOfScope": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      }
+    },
+    "validationPlan": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["ac", "verification"],
+        "properties": {
+          "ac": { "type": "string", "minLength": 1 },
+          "verification": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["risk", "trigger", "mitigation", "detection"],
+        "properties": {
+          "risk": { "type": "string", "minLength": 1 },
+          "trigger": { "type": "string", "minLength": 1 },
+          "mitigation": { "type": "string", "minLength": 1 },
+          "detection": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "alternatives": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "required": ["name", "reasonRejected"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "reasonRejected": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "openQuestions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "owner"],
+        "properties": {
+          "question": { "type": "string", "minLength": 1 },
+          "owner": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "design",
+  "version": "0.1.0",
+  "stage": "design",
+  "inputArtifact": "IntakeArtifact",
+  "outputArtifact": "SpecArtifact",
+  "promptVersion": "v0.1.0",
+  "status": "draft"
+}

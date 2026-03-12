@@ -1,0 +1,9 @@
+{
+  "id": "decompose",
+  "version": "0.1.0",
+  "stage": "decompose",
+  "inputArtifact": "SpecArtifact",
+  "outputArtifact": "PlanArtifact",
+  "promptVersion": "v0.2.0",
+  "status": "draft"
+}

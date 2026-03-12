@@ -1,0 +1,9 @@
+{
+  "id": "execute",
+  "version": "0.1.0",
+  "stage": "execute",
+  "inputArtifact": "PlanArtifact",
+  "outputArtifact": "ExecutionArtifact",
+  "promptVersion": "v0.1.0",
+  "status": "draft"
+}

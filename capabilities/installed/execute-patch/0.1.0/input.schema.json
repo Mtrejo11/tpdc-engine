@@ -1,0 +1,4 @@
+{
+  "$ref": "../../decompose/0.1.0/output.schema.json",
+  "$comment": "Input is a PlanArtifact from decompose, plus repo context provided by the runtime"
+}

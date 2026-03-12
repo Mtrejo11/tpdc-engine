@@ -1,0 +1,7 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/decompose/input",
+  "title": "SpecArtifact",
+  "description": "Input for decompose capability — a design ADR.",
+  "$ref": "../../capabilities/design/output.schema.json"
+}

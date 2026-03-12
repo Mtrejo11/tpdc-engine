@@ -1,0 +1,9 @@
+{
+  "id": "validate",
+  "version": "0.1.0",
+  "stage": "validate",
+  "inputArtifact": "ExecutionArtifact",
+  "outputArtifact": "EvalResult",
+  "promptVersion": "v0.1.0",
+  "status": "draft"
+}

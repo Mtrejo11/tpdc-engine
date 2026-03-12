@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tpdc/capabilities/validate/output",
+  "title": "EvalResult",
+  "description": "Output for validate capability — structured evaluation of an execution artifact.",
+  "type": "object",
+  "required": ["sourceTicket", "executionStatus", "verdict", "score", "acVerifications", "stepVerifications", "summary"],
+  "properties": {
+    "sourceTicket": { "type": "string", "minLength": 1 },
+    "executionStatus": { "type": "string", "minLength": 1 },
+    "verdict": { "type": "string", "enum": ["pass", "fail", "inconclusive"] },
+    "score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "acVerifications": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["ac", "verdict", "evidence"],
+        "properties": {
+          "ac": { "type": "string", "minLength": 1 },
+          "verdict": { "type": "string", "enum": ["pass", "fail", "cannot_verify"] },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "stepVerifications": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["stepNumber", "title", "expectedStatus", "actualStatus", "statusCorrect", "evidenceAssessment"],
+        "properties": {
+          "stepNumber": { "type": "integer", "minimum": 1 },
+          "title": { "type": "string", "minLength": 1 },
+          "expectedStatus": { "type": "string", "minLength": 1 },
+          "actualStatus": { "type": "string", "minLength": 1 },
+          "statusCorrect": { "type": "boolean" },
+          "evidenceAssessment": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["category", "severity", "description"],
+        "properties": {
+          "category": {
+            "type": "string",
+            "enum": [
+              "missing_evidence", "weak_evidence", "status_mismatch", "ac_gap", "scope_violation", "artifact_gap", "missing_prerequisite",
+              "untargeted_patch", "missing_patch", "invalid_diff",
+              "patch_grounding", "apply_integrity", "git_traceability", "workflow_inconsistency"
+            ]
+          },
+          "severity": { "type": "string", "enum": ["critical", "major", "minor"] },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "mutationAssessment": {
+      "type": "object",
+      "required": ["patchGrounding", "applyIntegrity", "gitTraceability", "workflowConsistency", "mutationCorrect", "mutationSummary"],
+      "properties": {
+        "patchGrounding": {
+          "type": "object",
+          "required": ["score", "assessment"],
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "assessment": { "type": "string", "minLength": 1 }
+          }
+        },
+        "applyIntegrity": {
+          "type": "object",
+          "required": ["score", "assessment"],
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "assessment": { "type": "string", "minLength": 1 }
+          }
+        },
+        "gitTraceability": {
+          "type": "object",
+          "required": ["score", "assessment"],
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "assessment": { "type": "string", "minLength": 1 }
+          }
+        },
+        "workflowConsistency": {
+          "type": "object",
+          "required": ["score", "assessment"],
+          "properties": {
+            "score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "assessment": { "type": "string", "minLength": 1 }
+          }
+        },
+        "mutationCorrect": { "type": "boolean" },
+        "mutationSummary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "summary": { "type": "string", "minLength": 1 }
+  }
+}
