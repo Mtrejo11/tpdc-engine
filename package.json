@@ -1,9 +1,31 @@
 {
   "name": "tpdc-engine",
   "version": "0.1.0",
-  "description": "Runtime execution engine for TPDC capabilities",
+  "description": "AI-powered development workflow engine — solve, fix, refactor, assess, plan, and discover with structured pipelines",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "capabilities/",
+    "tpdc-plugin/",
+    "marketplace.json"
+  ],
+  "keywords": [
+    "claude",
+    "claude-code",
+    "mcp",
+    "development-workflow",
+    "code-generation",
+    "bug-fix",
+    "refactoring",
+    "ai-engineering"
+  ],
+  "author": "mtrejo11",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mtrejo11/tpdc-engine"
+  },
   "bin": {
     "tpdc-engine": "dist/cli.js",
     "tpdc": "dist/cli.js",
