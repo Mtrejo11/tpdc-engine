@@ -212,13 +212,20 @@ console.log("\n[Test 10] MCP tool handler switch coverage\n");
 
 // ── Test 11: Allowed tools match MCP tool names ──────────────────────
 
-console.log("\n[Test 11] Skill allowed-tools reference valid MCP tools\n");
+console.log("\n[Test 11] Skill allowed-tools reference valid tools\n");
 {
+  // Built-in Claude Code tools that skills legitimately need
+  const builtinTools = [
+    "Read", "Grep", "Glob", "Edit", "Write", "Bash", "Agent",
+  ];
+
   const validMcpTools = [
     "mcp__plugin_tpdc_tpdc__tpdc_develop", "mcp__plugin_tpdc_tpdc__tpdc_discovery", "mcp__plugin_tpdc_tpdc__tpdc_assess",
     "mcp__plugin_tpdc_tpdc__tpdc_plan", "mcp__plugin_tpdc_tpdc__tpdc_solve", "mcp__plugin_tpdc_tpdc__tpdc_fix",
     "mcp__plugin_tpdc_tpdc__tpdc_refactor", "mcp__plugin_tpdc_tpdc__tpdc_show", "mcp__plugin_tpdc_tpdc__tpdc_diff",
   ];
+
+  const validTools = [...builtinTools, ...validMcpTools];
 
   const skills = fs.readdirSync(SKILLS_DIR).filter(
     (d) => fs.statSync(path.join(SKILLS_DIR, d)).isDirectory(),
@@ -230,7 +237,7 @@ console.log("\n[Test 11] Skill allowed-tools reference valid MCP tools\n");
     if (toolsMatch) {
       const tools = toolsMatch[1].split(",").map((t) => t.trim());
       for (const tool of tools) {
-        assert(validMcpTools.includes(tool), `${skill}: ${tool} is a valid MCP tool`);
+        assert(validTools.includes(tool), `${skill}: ${tool} is a valid tool`);
       }
     }
   }
