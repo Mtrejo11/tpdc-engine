@@ -1,7 +1,7 @@
 {
   "tpdc": {
-    "command": "node",
-    "args": ["${HOME}/.claude/plugins/marketplaces/tpdc/dist/mcp/server.js"],
+    "command": "bash",
+    "args": ["${HOME}/.claude/plugins/marketplaces/tpdc/tpdc-plugin/start-mcp.sh"],
     "env": {
       "TPDC_ADAPTER": "cli",
       "NODE_NO_WARNINGS": "1"

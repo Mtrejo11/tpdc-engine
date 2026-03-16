@@ -26,7 +26,7 @@ const TOOLS = [
             properties: {
                 mode: { type: "string", enum: ["feature", "bug", "refactor"], description: "Development mode" },
                 request: { type: "string", description: "The development request" },
-                repo_root: { type: "string", description: "Path to the target repository (required for --apply)" },
+                repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
                 apply: { type: "boolean", description: "Whether to apply patches to the repo" },
                 confirm_apply: { type: "boolean", description: "Auto-confirm apply (non-interactive)" },
             },
@@ -87,7 +87,7 @@ const TOOLS = [
             type: "object",
             properties: {
                 request: { type: "string", description: "Bug description" },
-                repo_root: { type: "string", description: "Path to the target repository" },
+                repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
                 apply: { type: "boolean", description: "Whether to apply patches" },
                 confirm_apply: { type: "boolean", description: "Auto-confirm apply" },
             },
@@ -101,7 +101,7 @@ const TOOLS = [
             type: "object",
             properties: {
                 request: { type: "string", description: "Refactor request" },
-                repo_root: { type: "string", description: "Path to the target repository" },
+                repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
                 apply: { type: "boolean", description: "Whether to apply patches" },
                 confirm_apply: { type: "boolean", description: "Auto-confirm apply" },
             },
@@ -141,6 +141,30 @@ function createAdapter() {
         return new claude_adapter_1.ClaudeAdapter({ model });
     return new claude_code_adapter_1.ClaudeCodeAdapter({ model });
 }
+// ── Repo root auto-detection ─────────────────────────────────────────
+let _server = null;
+async function resolveRepoRoot(explicit) {
+    if (explicit)
+        return explicit;
+    // Try MCP listRoots to get the client's working directories
+    if (_server) {
+        try {
+            const { roots } = await _server.listRoots();
+            if (roots && roots.length > 0) {
+                // Use the first root's URI, stripping the file:// prefix
+                const uri = roots[0].uri;
+                if (uri.startsWith("file://")) {
+                    return decodeURIComponent(uri.slice(7));
+                }
+                return uri;
+            }
+        }
+        catch {
+            // listRoots not supported by client — fall through
+        }
+    }
+    return undefined;
+}
 // ── Tool handlers ────────────────────────────────────────────────────
 async function handleTool(name, args) {
     const llm = createAdapter();
@@ -151,10 +175,11 @@ async function handleTool(name, args) {
             const parsed = (0, parser_1.parseDevelopArgs)(`${mode} "${request}"`);
             if (!parsed)
                 return "Error: Invalid develop mode. Use feature, bug, or refactor.";
+            const repoRoot = await resolveRepoRoot(args.repo_root);
             const flags = {
                 apply: args.apply,
                 confirmApply: args.confirm_apply,
-                repoRoot: args.repo_root,
+                repoRoot,
             };
             const result = await (0, develop_1.runDevelop)(parsed.mode, parsed.request, flags, { llm, quiet: true });
             return result.output;
@@ -170,10 +195,11 @@ async function handleTool(name, args) {
         case "tpdc_fix":
         case "tpdc_refactor": {
             const command = name.replace("tpdc_", "");
+            const repoRoot = await resolveRepoRoot(args.repo_root);
             const flags = {
                 apply: args.apply,
                 confirmApply: args.confirm_apply,
-                repoRoot: args.repo_root,
+                repoRoot,
             };
             const result = await (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags }, { llm, quiet: true });
             return result.output;
@@ -193,6 +219,7 @@ async function handleTool(name, args) {
 // ── Server setup ─────────────────────────────────────────────────────
 async function main() {
     const server = new index_js_1.Server({ name: "tpdc", version: "0.1.0" }, { capabilities: { tools: {} } });
+    _server = server;
     // List tools
     server.setRequestHandler(types_js_1.ListToolsRequestSchema, async () => ({
         tools: TOOLS,

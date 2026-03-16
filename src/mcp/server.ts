@@ -31,7 +31,7 @@ const TOOLS = [
       properties: {
         mode: { type: "string", enum: ["feature", "bug", "refactor"], description: "Development mode" },
         request: { type: "string", description: "The development request" },
-        repo_root: { type: "string", description: "Path to the target repository (required for --apply)" },
+        repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
         apply: { type: "boolean", description: "Whether to apply patches to the repo" },
         confirm_apply: { type: "boolean", description: "Auto-confirm apply (non-interactive)" },
       },
@@ -92,7 +92,7 @@ const TOOLS = [
       type: "object" as const,
       properties: {
         request: { type: "string", description: "Bug description" },
-        repo_root: { type: "string", description: "Path to the target repository" },
+        repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
         apply: { type: "boolean", description: "Whether to apply patches" },
         confirm_apply: { type: "boolean", description: "Auto-confirm apply" },
       },
@@ -106,7 +106,7 @@ const TOOLS = [
       type: "object" as const,
       properties: {
         request: { type: "string", description: "Refactor request" },
-        repo_root: { type: "string", description: "Path to the target repository" },
+        repo_root: { type: "string", description: "Path to the target repository. Auto-detected from workspace if omitted." },
         apply: { type: "boolean", description: "Whether to apply patches" },
         confirm_apply: { type: "boolean", description: "Auto-confirm apply" },
       },
@@ -148,6 +148,33 @@ function createAdapter(): LLMAdapter {
   return new ClaudeCodeAdapter({ model });
 }
 
+// ── Repo root auto-detection ─────────────────────────────────────────
+
+let _server: Server | null = null;
+
+async function resolveRepoRoot(explicit?: string): Promise<string | undefined> {
+  if (explicit) return explicit;
+
+  // Try MCP listRoots to get the client's working directories
+  if (_server) {
+    try {
+      const { roots } = await _server.listRoots();
+      if (roots && roots.length > 0) {
+        // Use the first root's URI, stripping the file:// prefix
+        const uri = roots[0].uri;
+        if (uri.startsWith("file://")) {
+          return decodeURIComponent(uri.slice(7));
+        }
+        return uri;
+      }
+    } catch {
+      // listRoots not supported by client — fall through
+    }
+  }
+
+  return undefined;
+}
+
 // ── Tool handlers ────────────────────────────────────────────────────
 
 async function handleTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -160,10 +187,11 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
       const parsed = parseDevelopArgs(`${mode} "${request}"`);
       if (!parsed) return "Error: Invalid develop mode. Use feature, bug, or refactor.";
 
+      const repoRoot = await resolveRepoRoot(args.repo_root as string | undefined);
       const flags = {
         apply: args.apply as boolean | undefined,
         confirmApply: args.confirm_apply as boolean | undefined,
-        repoRoot: args.repo_root as string | undefined,
+        repoRoot,
       };
       const result = await runDevelop(parsed.mode, parsed.request, flags, { llm, quiet: true });
       return result.output;
@@ -184,10 +212,11 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     case "tpdc_fix":
     case "tpdc_refactor": {
       const command = name.replace("tpdc_", "");
+      const repoRoot = await resolveRepoRoot(args.repo_root as string | undefined);
       const flags = {
         apply: args.apply as boolean | undefined,
         confirmApply: args.confirm_apply as boolean | undefined,
-        repoRoot: args.repo_root as string | undefined,
+        repoRoot,
       };
       const result = await dispatch(
         { command: command as any, args: args.request as string, flags },
@@ -224,6 +253,7 @@ async function main() {
     { name: "tpdc", version: "0.1.0" },
     { capabilities: { tools: {} } },
   );
+  _server = server;
 
   // List tools
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
