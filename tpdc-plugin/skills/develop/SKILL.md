@@ -1,7 +1,7 @@
 ---
 name: develop
 description: End-to-end development workflow. Orchestrates discovery → plan → solve (feature), fix (bug), or refactor. Use when the user asks to "develop a feature", "develop a fix", "develop a refactor", "end-to-end development", or "full dev cycle".
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_develop, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_develop, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
 metadata:
   author: tpdc
   version: "0.1"

@@ -1,7 +1,7 @@
 ---
 name: assess
 description: Analysis/audit mode. Evaluates security, performance, or architecture risks without producing patches. Use when the user asks to "assess", "audit", "evaluate security", "check performance", "review architecture", or "analyze risks".
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_assess
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_assess
 metadata:
   author: tpdc
   version: "0.1"

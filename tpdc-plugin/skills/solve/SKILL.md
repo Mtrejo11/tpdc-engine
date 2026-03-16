@@ -1,7 +1,7 @@
 ---
 name: solve
 description: Run the full TPDC pipeline for a request. Supports mutation mode with apply. Use when the user asks to "solve", "run the pipeline", "execute this", or wants the full intake → design → decompose → execute → validate flow.
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_solve, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_solve, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
 metadata:
   author: tpdc
   version: "0.1"

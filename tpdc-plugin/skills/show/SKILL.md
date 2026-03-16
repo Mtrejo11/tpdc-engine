@@ -1,7 +1,7 @@
 ---
 name: show
 description: Inspect a TPDC workflow run. Without arguments, lists recent runs. Use when the user asks to "show run", "inspect run", "list runs", or "what runs do we have".
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_show
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_show
 metadata:
   author: tpdc
   version: "0.1"

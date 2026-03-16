@@ -1,7 +1,7 @@
 ---
 name: discovery
 description: Frame a vague idea before execution. Produces problem framing, tradeoffs, readiness assessment, and a suggested next command. Use when the user has a vague idea and wants to explore it, "discover", "frame the problem", or "explore this idea".
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_discovery
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_discovery
 metadata:
   author: tpdc
   version: "0.1"

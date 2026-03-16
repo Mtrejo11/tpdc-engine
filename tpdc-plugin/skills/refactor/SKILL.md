@@ -1,7 +1,7 @@
 ---
 name: refactor
 description: Structural improvement without changing functional behavior. Detects extraction, decomposition, consolidation, simplification, or architecture patterns. Supports mutation mode. Use when the user asks to "refactor", "restructure", "extract", "split component", "consolidate", or "clean up code".
-allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_refactor, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
+allowed-tools: Read, Grep, Glob, mcp__plugin_tpdc_tpdc__tpdc_refactor, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
 metadata:
   author: tpdc
   version: "0.1"
