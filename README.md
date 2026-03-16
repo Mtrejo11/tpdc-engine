@@ -18,16 +18,16 @@ Installable as a **Claude Code plugin** or usable as a **standalone CLI**.
 Then use any command:
 ```
 /tpdc:show
-/tpdc:discovery "We need to improve offline image reliability"
-/tpdc:fix "Camera permission locked after denial on Android"
+/tpdc:discovery "We need to add real-time notifications to the app"
+/tpdc:fix "Login form crashes on empty email submission"
 ```
 
 ### As a Standalone CLI
 
 ```bash
 npx tpdc show
-npx tpdc solve "Implement tenant reset on logout"
-npx tpdc fix "Video tiles render as blank gray box"
+npx tpdc solve "Add password reset flow with email verification"
+npx tpdc fix "Dashboard charts don't render on Safari"
 ```
 
 ### From Source
@@ -48,18 +48,18 @@ node dist/cli.js show
 
 | Command | Purpose | Mutation | Example |
 |---------|---------|----------|---------|
-| `solve` | Run the full pipeline | Yes | `tpdc solve "Add camera permission recovery flow"` |
-| `fix` | Bug-fix with input normalization | Yes | `tpdc fix "Video tiles blank on Android in TrainingFolder"` |
-| `refactor` | Structural improvement | Yes | `tpdc refactor "Split PlantViewModal into smaller components"` |
-| `develop` | End-to-end orchestrated workflow | Yes | `tpdc develop feature "Implement tenant reset on logout"` |
+| `solve` | Run the full pipeline | Yes | `tpdc solve "Add password reset flow with email verification"` |
+| `fix` | Bug-fix with input normalization | Yes | `tpdc fix "Login form crashes on empty email submission on iOS"` |
+| `refactor` | Structural improvement | Yes | `tpdc refactor "Extract authentication logic into a dedicated service"` |
+| `develop` | End-to-end orchestrated workflow | Yes | `tpdc develop feature "Add user profile settings page"` |
 
 ### Analysis Commands (Safe Mode Only)
 
 | Command | Purpose | Example |
 |---------|---------|---------|
-| `discovery` | Frame a vague idea before execution | `tpdc discovery "We need to prevent org data leakage"` |
-| `assess` | Security, performance, or architecture audit | `tpdc assess "Evaluate security risks in the upload pipeline"` |
-| `plan` | Technical implementation plan with phases | `tpdc plan "Port Models Download from Pocket to HQ"` |
+| `discovery` | Frame a vague idea before execution | `tpdc discovery "We need to add real-time notifications"` |
+| `assess` | Security, performance, or architecture audit | `tpdc assess "Evaluate SQL injection risks in the search API"` |
+| `plan` | Technical implementation plan with phases | `tpdc plan "Migrate from REST to GraphQL"` |
 
 ### Inspection Commands
 
@@ -114,8 +114,8 @@ execute-patch → dry-run → preview → confirmation → git apply → validat
 Full pipeline execution. The general-purpose command.
 
 ```bash
-tpdc solve "Implement tenant reset on logout in Field Lite"
-tpdc solve "Add dark mode" --apply --repo-root ~/project
+tpdc solve "Add two-factor authentication to the login flow"
+tpdc solve "Implement dark mode" --apply --repo-root ~/project
 ```
 
 ### `fix`
@@ -123,7 +123,8 @@ tpdc solve "Add dark mode" --apply --repo-root ~/project
 Bug-fix flow. Normalizes bug reports by extracting platform, component, actual/expected behavior. If context is missing, suggests a clarified bug report.
 
 ```bash
-tpdc fix "Camera permission locked after denial on Android in roomCamera"
+tpdc fix "Dashboard charts don't render on Safari 17"
+tpdc fix "Form validation error messages disappear after 1 second on Android"
 ```
 
 Output includes: detected context, missing fields, validation checklist, suggested clarified input.
@@ -141,8 +142,9 @@ Structural improvement without changing functional behavior. Detects the refacto
 | Architecture | introduce layer, decouple, separate concerns |
 
 ```bash
-tpdc refactor "Extract image upload retry logic into a dedicated service"
-tpdc refactor "Split PlantViewModal into smaller components"
+tpdc refactor "Extract payment processing into a dedicated service"
+tpdc refactor "Split the UserProfile component into smaller sub-components"
+tpdc refactor "Consolidate duplicate API error handling across services"
 ```
 
 Output includes: targets, risk level (low/medium/high), structural issues, strategy, affected files, expected benefits.
@@ -158,8 +160,9 @@ Analysis/audit mode. Auto-detects the assessment category:
 | Architecture | architecture, coupling, separation of concerns, SOLID |
 
 ```bash
-tpdc assess "Evaluate security risks in the image upload pipeline"
-tpdc assess "Analyze performance bottlenecks in TrainingFolderScreen"
+tpdc assess "Evaluate SQL injection risks in the search API"
+tpdc assess "Analyze rendering performance on the dashboard page"
+tpdc assess "Review module coupling between auth and user services"
 ```
 
 Output includes: scope, findings by risk level (critical/high/medium/low), evidence, recommended actions.
@@ -169,8 +172,8 @@ Output includes: scope, findings by risk level (critical/high/medium/low), evide
 Technical implementation plan without generating patches.
 
 ```bash
-tpdc plan "Port Models Download from Pocket to HQ"
-tpdc plan "Add AI summaries popup in FARM"
+tpdc plan "Migrate from REST to GraphQL"
+tpdc plan "Add end-to-end encryption for direct messages"
 ```
 
 Output includes: objective, scope, ordered phases with dependencies, likely files, validation approach, readiness status.
@@ -180,8 +183,8 @@ Output includes: objective, scope, ordered phases with dependencies, likely file
 Pre-execution framing for vague ideas. Classifies questions as critical (blocking) or informational (non-blocking).
 
 ```bash
-tpdc discovery "We need to prevent org data leakage when switching orgs"
-tpdc discovery "We want to improve offline image reliability"
+tpdc discovery "We need to add real-time notifications to the app"
+tpdc discovery "We want to support offline mode for mobile users"
 ```
 
 Output includes: problem framing, affected areas, impact areas, tradeoffs, decision drivers, readiness (ready/needs_input/not_ready), suggested next command.
@@ -191,9 +194,9 @@ Output includes: problem framing, affected areas, impact areas, tradeoffs, decis
 End-to-end orchestrated workflow. Chains existing commands step by step.
 
 ```bash
-tpdc develop feature "Implement tenant reset on logout"   # discovery → plan → solve
-tpdc develop bug "Camera permission locked on Android"     # fix (with context validation)
-tpdc develop refactor "Split PlantViewModal"                # refactor
+tpdc develop feature "Add user profile settings page"     # discovery → plan → solve
+tpdc develop bug "Checkout fails on expired session"       # fix (with context validation)
+tpdc develop refactor "Decouple the notification module"   # refactor
 ```
 
 Stopping rules:
@@ -276,7 +279,7 @@ The engine supports multiple LLM backends:
 
 Set the model:
 ```bash
-TPDC_MODEL=opus tpdc solve "Complex request"
+TPDC_MODEL=opus tpdc solve "Complex architectural request"
 ```
 
 ---
@@ -370,13 +373,13 @@ The plugin provides a stdio MCP server with 9 tools:
 After installing the plugin, these slash commands are available in Claude Code:
 
 ```
-/tpdc:develop feature "Implement tenant reset on logout"
-/tpdc:discovery "We need to improve offline reliability"
-/tpdc:assess "Evaluate security risks in upload pipeline"
-/tpdc:plan "Port Models Download from Pocket to HQ"
-/tpdc:solve "Add camera permission recovery flow"
-/tpdc:fix "Video tiles blank gray box on Android"
-/tpdc:refactor "Split PlantViewModal into smaller components"
+/tpdc:develop feature "Add user profile settings page"
+/tpdc:discovery "We want to support offline mode"
+/tpdc:assess "Evaluate SQL injection risks in the search API"
+/tpdc:plan "Migrate from REST to GraphQL"
+/tpdc:solve "Add two-factor authentication"
+/tpdc:fix "Login form crashes on empty email submission"
+/tpdc:refactor "Extract payment processing into a service"
 /tpdc:show
 /tpdc:diff d2ae7adf
 ```
