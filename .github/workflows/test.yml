@@ -1,0 +1,62 @@
+name: TPDC Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Test fix
+        run: npx tsx scripts/test-fix-command.ts
+
+      - name: Test assess
+        run: npx tsx scripts/test-assess-command.ts
+
+      - name: Test discovery
+        run: npx tsx scripts/test-discovery-command.ts
+
+      - name: Test refactor
+        run: npx tsx scripts/test-refactor-command.ts
+
+      - name: Test plan
+        run: npx tsx scripts/test-plan-command.ts
+
+      - name: Test learning
+        run: npx tsx scripts/test-learning.ts
+
+      - name: Test mutation UX
+        run: npx tsx scripts/test-mutation-ux.ts
+
+      - name: Test integration
+        run: npx tsx scripts/test-integration.ts
+
+      - name: Test develop
+        run: npx tsx scripts/test-develop.ts
+
+      - name: Test MCP plugin
+        run: npx tsx scripts/test-mcp-plugin.ts
