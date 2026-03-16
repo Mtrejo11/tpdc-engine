@@ -1,7 +1,7 @@
 import { loadCapability } from "../registry/loader";
 import { LLMAdapter, MockLLMAdapter } from "./types";
 import { saveArtifact, saveRawOutput } from "../storage/local";
-import { IntakeArtifactSchema } from "tpdc-protocols";
+import { IntakeArtifactSchema, SpecArtifactSchema, PlanArtifactSchema, ExecutionArtifactSchema, PatchArtifactSchema, EvalResultSchema } from "../protocols";
 import * as crypto from "crypto";
 
 export interface RunMetadata {
@@ -29,8 +29,13 @@ export interface RunResult {
 }
 
 // Map output artifact names to their Zod schemas for runtime validation
-const OUTPUT_VALIDATORS: Record<string, { safeParse: (data: unknown) => { success: boolean; data?: unknown; error?: { issues: Array<{ path: (string | number)[]; message: string }> } } }> = {
+const OUTPUT_VALIDATORS: Record<string, { safeParse: (data: unknown) => { success: boolean; data?: unknown; error?: { issues: Array<{ path: PropertyKey[]; message: string }> } } }> = {
   IntakeArtifact: IntakeArtifactSchema,
+  SpecArtifact: SpecArtifactSchema,
+  PlanArtifact: PlanArtifactSchema,
+  ExecutionArtifact: ExecutionArtifactSchema,
+  PatchArtifact: PatchArtifactSchema,
+  EvalResult: EvalResultSchema,
 };
 
 function extractJson(raw: string): string {
@@ -55,6 +60,7 @@ export async function runCapability(
     version?: string;
     llm?: LLMAdapter;
     runId?: string;
+    quiet?: boolean;
   }
 ): Promise<RunResult> {
   const startTime = Date.now();
@@ -72,14 +78,13 @@ export async function runCapability(
     `run_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
   const { adapterInfo } = llm;
+  const log = options?.quiet ? (() => {}) : console.log.bind(console);
 
-  console.log(
-    `[Engine] Running capability: ${cap.definition.id}@${cap.definition.version}`
-  );
-  console.log(`[Engine] Stage: ${cap.definition.stage}`);
-  console.log(`[Engine] Adapter: ${adapterInfo.adapterId} (${adapterInfo.transport})`);
-  console.log(`[Engine] Model: ${adapterInfo.modelId}`);
-  console.log(`[Engine] Run ID: ${runId}`);
+  log(`[Engine] Running capability: ${cap.definition.id}@${cap.definition.version}`);
+  log(`[Engine] Stage: ${cap.definition.stage}`);
+  log(`[Engine] Adapter: ${adapterInfo.adapterId} (${adapterInfo.transport})`);
+  log(`[Engine] Model: ${adapterInfo.modelId}`);
+  log(`[Engine] Run ID: ${runId}`);
 
   // Call LLM with prompt + input
   const inputStr =
@@ -131,9 +136,11 @@ export async function runCapability(
       validationErrors = result.error!.issues.map(
         (issue) => `${issue.path.join(".")}: ${issue.message}`
       );
-      console.error(`[Engine] Validation failed for ${cap.definition.outputArtifact}:`);
-      for (const err of validationErrors!) {
-        console.error(`  - ${err}`);
+      if (!options?.quiet) {
+        console.error(`[Engine] Validation failed for ${cap.definition.outputArtifact}:`);
+        for (const err of validationErrors!) {
+          console.error(`  - ${err}`);
+        }
       }
     }
   }
@@ -161,9 +168,9 @@ export async function runCapability(
   }
   saveArtifact(runId, "metadata", metadata);
 
-  console.log(`[Engine] Output saved to: ${savedTo}`);
-  console.log(`[Engine] Validated: ${validated}`);
-  console.log(`[Engine] Duration: ${durationMs}ms`);
+  log(`[Engine] Output saved to: ${savedTo}`);
+  log(`[Engine] Validated: ${validated}`);
+  log(`[Engine] Duration: ${durationMs}ms`);
 
   return {
     runId,

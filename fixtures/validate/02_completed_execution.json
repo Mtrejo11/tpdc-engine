@@ -1,0 +1,65 @@
+{
+  "sourceTicket": "tpdc-gym/phase-1",
+  "planTitle": "ADR: CLI-Based Spec Generation Capability",
+  "status": "completed",
+  "appliedChangesSummary": "All four steps in the plan are already implemented in the repository. The intake capability bundle is installed under capabilities/installed/intake/0.1.0/ with capability.json, input.schema.json, output.schema.json, and prompt.md — matching the structure used by the decompose, design, and execute capabilities. The CLI invocation script exists at scripts/test-intake.ts, wires a ticket JSON file through runCapability using ClaudeCodeAdapter, and emits validated IntakeArtifact output with configurable adapter selection. Schema validation is explicitly wired in runCapability.ts via the OUTPUT_VALIDATORS map, which maps 'IntakeArtifact' to IntakeArtifactSchema from tpdc-protocols. Raw LLM output is persisted on every run via saveRawOutput called before validation, and validated artifacts plus metadata are written via saveArtifact.",
+  "touchedArtifacts": [
+    "capabilities/installed/intake/0.1.0/capability.json",
+    "capabilities/installed/intake/0.1.0/input.schema.json",
+    "capabilities/installed/intake/0.1.0/output.schema.json",
+    "capabilities/installed/intake/0.1.0/prompt.md",
+    "scripts/test-intake.ts",
+    "src/runtime/runCapability.ts"
+  ],
+  "evidence": [
+    "Run scripts/test-intake.ts with a fixture from fixtures/intake/ and confirm output passes IntakeArtifactSchema validation (result.validated === true).",
+    "Provide a malformed fixture and confirm the runtime surfaces validationErrors rather than returning invalid output (result.validated === false with populated validationErrors array).",
+    "After a run, confirm both the raw output file and the validated artifact JSON exist in the artifacts directory under the run ID subdirectory."
+  ],
+  "stepResults": [
+    {
+      "stepNumber": 1,
+      "title": "Install intake capability bundle",
+      "status": "completed",
+      "changeSummary": "The intake capability bundle already exists at capabilities/installed/intake/0.1.0/ with all required files: capability.json declares id, version, stage, inputArtifact (RequestArtifact), outputArtifact (IntakeArtifact), promptVersion, and status. input.schema.json defines the RequestArtifact shape. output.schema.json defines the IntakeArtifact shape. prompt.md contains the intake prompt. The structure mirrors the decompose, design, and execute bundles exactly, making it discoverable by the runtime's standard loader without special-casing.",
+      "touchedArtifacts": [
+        "capabilities/installed/intake/0.1.0/capability.json",
+        "capabilities/installed/intake/0.1.0/input.schema.json",
+        "capabilities/installed/intake/0.1.0/output.schema.json",
+        "capabilities/installed/intake/0.1.0/prompt.md"
+      ],
+      "evidence": "Confirm loadCapability('intake') resolves to the bundle at capabilities/installed/intake/0.1.0/ without error, matching the same resolution path as 'decompose', 'design', and 'execute'."
+    },
+    {
+      "stepNumber": 2,
+      "title": "Create CLI invocation script",
+      "status": "completed",
+      "changeSummary": "scripts/test-intake.ts exists and implements the CLI entry point. It reads fixture JSON files from fixtures/intake/, invokes runCapability('intake', input, { llm }) using a LLMAdapter resolved from environment variables (mock, API, or ClaudeCodeAdapter), surfaces validation errors per fixture, and writes a timestamped JSON report to the artifacts/ directory. Adapter and model are configurable via TPDC_ADAPTER and TPDC_MODEL environment variables. A timeout is not explicitly declared as a CLI flag, but the ClaudeCodeAdapter and LLMAdapter layer govern execution duration.",
+      "touchedArtifacts": [
+        "scripts/test-intake.ts"
+      ],
+      "evidence": "Run 'npx tsx scripts/test-intake.ts' with at least one fixture in fixtures/intake/ and confirm it completes without runtime errors, printing pass/fail per fixture and saving a report to artifacts/."
+    },
+    {
+      "stepNumber": 3,
+      "title": "Verify schema validation wiring",
+      "status": "completed",
+      "changeSummary": "src/runtime/runCapability.ts contains an OUTPUT_VALIDATORS map that explicitly maps 'IntakeArtifact' to IntakeArtifactSchema imported from tpdc-protocols. After the LLM response is parsed, validator.safeParse(parsed) is called; on failure, validationErrors are populated and logged, and the run result is returned with validated: false. No additional wiring is required — the capability bundle's outputArtifact field ('IntakeArtifact') is the exact key used in OUTPUT_VALIDATORS.",
+      "touchedArtifacts": [
+        "src/runtime/runCapability.ts"
+      ],
+      "evidence": "Submit a fixture designed to produce a schema-violating response and confirm the RunResult has validated: false with a non-empty validationErrors array containing field-level Zod issue messages."
+    },
+    {
+      "stepNumber": 4,
+      "title": "Verify raw output persistence",
+      "status": "completed",
+      "changeSummary": "src/runtime/runCapability.ts calls saveRawOutput(runId, capabilityId, rawOutput) immediately after the LLM completes, before any JSON parsing or validation. saveArtifact is then called for the parsed output, validation errors (if any), and metadata. Both raw and validated artifacts are therefore written on every run. No additional persistence wiring is needed.",
+      "touchedArtifacts": [
+        "src/runtime/runCapability.ts"
+      ],
+      "evidence": "After a successful run, confirm the artifacts directory contains a subdirectory for the run ID with at minimum a raw output file, a validated artifact JSON file, and a metadata JSON file."
+    }
+  ],
+  "notes": "The plan's risk around CLI timeout (300s default with override via flag or env var) is partially addressed — the adapter layer controls execution duration but no explicit timeout flag or TPDC_TIMEOUT env var is visible in scripts/test-intake.ts. If the plan's acceptance criteria requires a named timeout override, that remains unimplemented. All other acceptance criteria are satisfied by the existing implementation."
+}

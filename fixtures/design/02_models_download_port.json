@@ -1,0 +1,38 @@
+{
+  "title": "Models Download feature unavailable in Field HQ",
+  "source_ticket": "manual-002",
+  "problem_statement": "Field HQ users cannot access the Models Download feature available in Field Pocket, creating a functional gap between the two products despite overlapping user workflows.",
+  "affected_users": "Field HQ users who need to download models as part of their workflow.",
+  "observable_symptom": "The Models Download feature present in Field Pocket does not exist in Field HQ, preventing HQ users from performing model downloads without switching applications.",
+  "acceptance_criteria": [
+    "A Field HQ user can initiate a model download from within Field HQ without switching to Field Pocket.",
+    "A downloaded model is accessible in Field HQ after the download completes successfully.",
+    "Download progress is visible to the user while a download is in progress.",
+    "A failed download surfaces an actionable error state to the user.",
+    "Access to the Models Download feature in Field HQ enforces HQ-specific permission rules and does not grant access to users who lack the required permissions."
+  ],
+  "out_of_scope": [
+    "Changes to the Models Download feature in Field Pocket.",
+    "Cross-app model sharing or syncing between Field Pocket and Field HQ."
+  ],
+  "assumptions": [
+    "The Models Download feature in Field Pocket is stable and can serve as a functional reference for expected behavior.",
+    "Field HQ has an existing permission system that can be extended to gate access to Models Download."
+  ],
+  "open_questions": [
+    { "question": "What type of models does 'Models Download' refer to (e.g., ML models, 3D models, data schemas)?", "owner": "product" },
+    { "question": "What are the storage architecture differences between Field Pocket and Field HQ that affect how downloaded models are stored or retrieved?", "owner": "engineering" },
+    { "question": "What permission rules govern Models Download access in Field HQ, and how do they differ from Field Pocket's rules?", "owner": "product" },
+    { "question": "Which Field HQ UI patterns must the Models Download feature conform to, and which Field Pocket UI patterns are incompatible with HQ?", "owner": "product" },
+    { "question": "Is model content served from the same backend or data source used by Field Pocket, or does Field HQ require a separate integration?", "owner": "engineering" },
+    { "question": "Must Field HQ support offline access to downloaded models, consistent with any offline capability in Field Pocket?", "owner": "product" }
+  ],
+  "success_metrics": [
+    "Field HQ users can complete a model download end-to-end without errors introduced by the new integration.",
+    "No unauthorized model download is possible by a Field HQ user who lacks the required permissions."
+  ],
+  "non_functional_constraints": [
+    "The feature must enforce Field HQ's role-based access controls; no model download may bypass permission checks.",
+    "Download progress and error states must be surfaced to the user in a manner consistent with Field HQ's existing patterns for async operations."
+  ]
+}

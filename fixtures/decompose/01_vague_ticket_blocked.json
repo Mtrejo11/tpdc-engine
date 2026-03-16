@@ -1,0 +1,74 @@
+{
+  "title": "ADR: Automated Spec Generation from Vague Engineering Tickets",
+  "status": "proposed",
+  "date": "2026-03-09",
+  "sourceTicket": "manual-test/manual-001",
+  "context": [
+    "Engineering tickets frequently enter the workflow as free-form, unstructured text lacking a problem statement, defined affected users, and testable acceptance criteria, forcing teams into repeated clarification cycles before work can begin.",
+    "Current baseline behavior: tickets are authored without enforced structure; recipients must manually interpret intent, infer scope, and derive acceptance criteria, resulting in inconsistent work items and rework.",
+    "Constraints: the capability must be usable by non-technical stakeholders without specialized training, and output must be consistent and reproducible for equivalent inputs."
+  ],
+  "decision": "We will implement a spec generation capability that accepts free-form ticket text as input and produces a structured spec artifact containing at minimum a problem statement, affected users, and binary testable acceptance criteria, because automated structuring at the point of ticket authorship eliminates downstream clarification cycles, enforces a shared definition of 'structured spec', and makes output immediately actionable without manual reformatting by the requester.",
+  "scope": {
+    "inScope": [
+      "Acceptance of free-form ticket text as the primary input signal",
+      "Generation of structured spec artifacts with required fields: problem statement, affected users, and acceptance criteria",
+      "Enforcement that each generated acceptance criterion is framed as a binary, observable check free of subjective judgment",
+      "Delivery of output in a format immediately usable as a work item without manual reformatting"
+    ],
+    "outOfScope": [
+      "Automatic implementation or resolution of the ticket contents",
+      "Integration with any specific ticketing system unless explicitly scoped in a follow-on decision"
+    ]
+  },
+  "validationPlan": [
+    {
+      "ac": "Given a vague ticket input, the system produces a structured spec containing at minimum a problem statement, affected users, and acceptance criteria.",
+      "verification": "Submit a deliberately vague, unstructured ticket and inspect the output artifact to confirm all three required fields are present and populated."
+    },
+    {
+      "ac": "Each generated acceptance criterion is binary and testable without subjective judgment.",
+      "verification": "Review every AC in the generated spec against a binary framing rubric; flag any AC with subjective language."
+    },
+    {
+      "ac": "The structured spec is produced without requiring manual reformatting by the requester.",
+      "verification": "Hand the raw capability output to a reviewer who did not author the input; confirm they can use it directly as an actionable work item."
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Generated acceptance criteria contain ambiguous or non-binary language despite structured prompting",
+      "trigger": "Input tickets are highly sparse or domain-specific",
+      "mitigation": "Define a strict AC format template with explicit binary framing rules",
+      "detection": "Automated AC format validator on every output"
+    },
+    {
+      "risk": "Required spec fields are omitted or left empty when input is extremely minimal",
+      "trigger": "Input contains fewer contextual signals than the minimum needed",
+      "mitigation": "Field completeness gate that checks for minimum field population",
+      "detection": "Field presence check on every output artifact"
+    },
+    {
+      "risk": "Output inconsistency for equivalent inputs violates the reproducibility constraint",
+      "trigger": "Identical or near-identical ticket inputs produce structurally different specs",
+      "mitigation": "Apply deterministic generation settings and structured output schema enforcement",
+      "detection": "Run a fixed regression suite on each model or prompt version change"
+    }
+  ],
+  "alternatives": [
+    {
+      "name": "Manual structured intake form",
+      "reasonRejected": "Requires requesters to fill out a structured form themselves, failing to address the root problem."
+    },
+    {
+      "name": "Rule-based keyword extraction",
+      "reasonRejected": "Lacks semantic understanding needed to infer testable acceptance criteria from loosely stated intent."
+    }
+  ],
+  "openQuestions": [
+    { "question": "What surface or interface will this capability be exposed through (e.g., web UI, CLI, API)?", "owner": "product" },
+    { "question": "What is the expected data source for incoming vague tickets (e.g., Jira, GitHub Issues, free-form text input)?", "owner": "engineering" },
+    { "question": "Is authentication or access control required to use the spec generation capability?", "owner": "engineering" },
+    { "question": "Is there an existing spec schema or template that output must conform to, or does one need to be defined?", "owner": "product" }
+  ]
+}

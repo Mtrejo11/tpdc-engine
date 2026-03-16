@@ -1,0 +1,59 @@
+{
+  "execution": {
+    "sourceTicket": "PROJ-303",
+    "planTitle": "ADR: Refactor auth module",
+    "executionMode": "patch",
+    "executionStatus": "completed",
+    "targetFiles": ["src/auth/login.ts", "src/auth/session.ts"],
+    "changeSummary": "Refactored login handler to use new session management. Modified login.ts to call createSession and updated session.ts with a new createSession export.",
+    "patches": [
+      {
+        "stepNumber": 1,
+        "filePath": "src/auth/session.ts",
+        "operation": "modify",
+        "diff": "--- a/src/auth/session.ts\n+++ b/src/auth/session.ts\n@@ -1,4 +1,8 @@\n import { SessionStore } from './store';\n \n-export function getSession(id: string) {\n-  return SessionStore.get(id);\n+export function getSession(id: string) { return SessionStore.get(id); }\n+\n+export function createSession(userId: string): string {\n+  const id = crypto.randomUUID();\n+  SessionStore.set(id, { userId, createdAt: Date.now() });\n+  return id;\n }\n",
+        "justification": "Step 1: Add createSession to the session module as specified in plan step 1."
+      },
+      {
+        "stepNumber": 2,
+        "filePath": "src/auth/login.ts",
+        "operation": "modify",
+        "diff": "--- a/src/auth/login.ts\n+++ b/src/auth/login.ts\n@@ -1,6 +1,7 @@\n import { verifyPassword } from './crypto';\n+import { createSession } from './session';\n \n export async function handleLogin(email: string, password: string) {\n   const user = await findUser(email);\n   if (!user || !verifyPassword(password, user.hash)) throw new Error('Invalid credentials');\n-  return { token: generateToken(user.id) };\n+  return { sessionId: createSession(user.id) };\n }\n",
+        "justification": "Step 2: Replace token generation with session creation in the login handler."
+      }
+    ]
+  },
+  "mutationContext": {
+    "mode": "mutation",
+    "confirmed": true,
+    "dryRun": {
+      "safe": true,
+      "applicable": 2,
+      "conflicts": 0,
+      "errors": 0,
+      "summary": "2/2 applicable",
+      "patchResults": [
+        { "filePath": "src/auth/session.ts", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" },
+        { "filePath": "src/auth/login.ts", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" }
+      ],
+      "safetyViolations": []
+    },
+    "apply": {
+      "status": "rolled_back",
+      "filesChanged": 0,
+      "fileResults": [
+        { "filePath": "src/auth/session.ts", "status": "applied" },
+        { "filePath": "src/auth/login.ts", "status": "error", "error": "EACCES: permission denied" }
+      ],
+      "errors": ["Failed to write src/auth/login.ts: EACCES: permission denied"],
+      "rollback": { "triggered": true, "filesReverted": ["src/auth/session.ts"], "success": true }
+    },
+    "git": {
+      "branchCreated": false,
+      "branchName": "",
+      "commitCreated": false,
+      "commitHash": "",
+      "filesStaged": []
+    }
+  }
+}

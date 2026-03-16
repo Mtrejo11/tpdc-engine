@@ -1,0 +1,61 @@
+{
+  "execution": {
+    "sourceTicket": "PROJ-301",
+    "planTitle": "ADR: Add rate limiting to upload endpoint",
+    "executionMode": "patch",
+    "executionStatus": "completed",
+    "targetFiles": ["src/routes/upload.ts", "src/middleware/rateLimit.ts"],
+    "changeSummary": "Added rate limiting middleware to the upload route. Created a new rateLimit middleware module and applied it to the POST /upload endpoint with a 10 req/min limit.",
+    "patches": [
+      {
+        "stepNumber": 1,
+        "filePath": "src/middleware/rateLimit.ts",
+        "operation": "create",
+        "diff": "--- /dev/null\n+++ b/src/middleware/rateLimit.ts\n@@ -0,0 +1,15 @@\n+import { Request, Response, NextFunction } from 'express';\n+\n+const windowMs = 60 * 1000;\n+const store = new Map<string, { count: number; resetAt: number }>();\n+\n+export function rateLimit(maxRequests: number) {\n+  return (req: Request, res: Response, next: NextFunction) => {\n+    const key = req.ip || 'unknown';\n+    const now = Date.now();\n+    const entry = store.get(key);\n+    if (!entry || now > entry.resetAt) { store.set(key, { count: 1, resetAt: now + windowMs }); return next(); }\n+    if (entry.count >= maxRequests) { return res.status(429).json({ error: 'Rate limit exceeded' }); }\n+    entry.count++; next();\n+  };\n+}\n",
+        "justification": "Step 1: Create rate limiting middleware per plan — in-memory store with sliding window, configurable max requests."
+      },
+      {
+        "stepNumber": 2,
+        "filePath": "src/routes/upload.ts",
+        "operation": "modify",
+        "diff": "--- a/src/routes/upload.ts\n+++ b/src/routes/upload.ts\n@@ -1,5 +1,6 @@\n import { Router } from 'express';\n import { handleUpload } from '../controllers/upload';\n+import { rateLimit } from '../middleware/rateLimit';\n \n const router = Router();\n-router.post('/upload', handleUpload);\n+router.post('/upload', rateLimit(10), handleUpload);\n",
+        "justification": "Step 2: Apply rate limiting to the POST /upload endpoint with 10 requests per minute limit, as specified in the plan."
+      }
+    ],
+    "assumptions": ["Express.js router pattern is used", "req.ip is available for client identification"],
+    "risks": ["In-memory store is not suitable for multi-process deployments"]
+  },
+  "mutationContext": {
+    "mode": "mutation",
+    "confirmed": true,
+    "dryRun": {
+      "safe": true,
+      "applicable": 2,
+      "conflicts": 0,
+      "errors": 0,
+      "summary": "2/2 applicable",
+      "patchResults": [
+        { "filePath": "src/middleware/rateLimit.ts", "operation": "create", "status": "applicable", "detail": "File does not exist; create is valid" },
+        { "filePath": "src/routes/upload.ts", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" }
+      ],
+      "safetyViolations": []
+    },
+    "apply": {
+      "status": "applied",
+      "filesChanged": 2,
+      "fileResults": [
+        { "filePath": "src/middleware/rateLimit.ts", "status": "applied" },
+        { "filePath": "src/routes/upload.ts", "status": "applied" }
+      ],
+      "errors": [],
+      "rollback": { "triggered": false }
+    },
+    "git": {
+      "branchCreated": true,
+      "branchName": "tpdc/run-20260309-a1b2c3d4",
+      "commitCreated": true,
+      "commitHash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "filesStaged": ["src/middleware/rateLimit.ts", "src/routes/upload.ts"]
+    }
+  }
+}

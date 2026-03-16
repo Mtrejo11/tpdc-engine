@@ -1,0 +1,15 @@
+{
+  "plan": {
+    "sourceTicket": "uploads/blocked-complaint",
+    "designTitle": "ADR: Diagnose and Remediate Upload Failures",
+    "status": "blocked",
+    "blockedReason": "All open questions are unresolved — upload surface, error type, storage backend, auth context, and failure rate are unknown.",
+    "unresolvedQuestions": [
+      { "question": "What specific upload workflow is failing?", "owner": "engineering" },
+      { "question": "What is the observable error?", "owner": "engineering" },
+      { "question": "Which surface is affected?", "owner": "product" }
+    ]
+  },
+  "repoRoot": "__ENGINE_ROOT__",
+  "fileHints": []
+}

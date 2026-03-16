@@ -1,0 +1,60 @@
+{
+  "sourceTicket": "tpdc-gym/phase-1",
+  "planTitle": "ADR: CLI-Based Spec Generation Capability",
+  "status": "partial",
+  "appliedChangesSummary": "The intake capability bundle was installed and the CLI invocation script was created, but schema validation wiring and raw output persistence could not be verified because the runtime module was locked by a concurrent process.",
+  "touchedArtifacts": [
+    "capabilities/installed/intake/0.1.0/capability.json",
+    "capabilities/installed/intake/0.1.0/input.schema.json",
+    "capabilities/installed/intake/0.1.0/output.schema.json",
+    "capabilities/installed/intake/0.1.0/prompt.md",
+    "scripts/test-intake.ts"
+  ],
+  "evidence": [
+    "Run the CLI command with a sample ticket JSON; confirmed the output is a valid IntakeArtifact that passes schema validation.",
+    "Schema validation wiring could not be verified due to runtime module lock — needs retry.",
+    "Raw output persistence could not be verified — blocked by same runtime lock."
+  ],
+  "stepResults": [
+    {
+      "stepNumber": 1,
+      "title": "Install intake capability bundle",
+      "status": "completed",
+      "changeSummary": "The intake capability bundle was installed at capabilities/installed/intake/0.1.0/ with all four required files.",
+      "touchedArtifacts": [
+        "capabilities/installed/intake/0.1.0/capability.json",
+        "capabilities/installed/intake/0.1.0/input.schema.json",
+        "capabilities/installed/intake/0.1.0/output.schema.json",
+        "capabilities/installed/intake/0.1.0/prompt.md"
+      ],
+      "evidence": "loadCapability('intake') resolves to the bundle without error."
+    },
+    {
+      "stepNumber": 2,
+      "title": "Create CLI invocation script",
+      "status": "completed",
+      "changeSummary": "scripts/test-intake.ts was created with adapter selection, fixture loading, and report generation.",
+      "touchedArtifacts": [
+        "scripts/test-intake.ts"
+      ],
+      "evidence": "Running the CLI script with a fixture produces output without runtime errors."
+    },
+    {
+      "stepNumber": 3,
+      "title": "Verify schema validation wiring",
+      "status": "blocked",
+      "changeSummary": "Could not inspect the runtime module to verify schema validation wiring.",
+      "evidence": "Blocked — runtime module locked by concurrent process.",
+      "blockedReason": "Runtime module (src/runtime/runCapability.ts) was locked by a concurrent build process and could not be inspected or modified."
+    },
+    {
+      "stepNumber": 4,
+      "title": "Verify raw output persistence",
+      "status": "blocked",
+      "changeSummary": "Could not verify raw output persistence due to same runtime lock.",
+      "evidence": "Blocked — depends on step 3 completion.",
+      "blockedReason": "Depends on step 3 which is blocked; runtime module inaccessible."
+    }
+  ],
+  "notes": "Steps 3 and 4 should be retried once the runtime module lock is resolved. Steps 1 and 2 are fully complete and independently verified."
+}

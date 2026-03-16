@@ -1,0 +1,32 @@
+{
+  "sourceTicket": "manual-004",
+  "designTitle": "ADR: Remediate Failing Upload Workflow",
+  "status": "blocked",
+  "blockedReason": "All six open questions remain unresolved, and the design's own decision explicitly states that decomposition must be blocked until the affected surface, failure mode, storage backend, and auth model are confirmed. No concrete step can be derived without knowing which workflow is failing or how it fails.",
+  "unresolvedQuestions": [
+    {
+      "question": "Which specific upload workflow or feature is failing?",
+      "owner": "product"
+    },
+    {
+      "question": "What surface is affected — web, mobile, or API?",
+      "owner": "product"
+    },
+    {
+      "question": "What error messages or failure modes are users observing?",
+      "owner": "product"
+    },
+    {
+      "question": "What is the auth model — are uploads restricted to authenticated users?",
+      "owner": "engineering"
+    },
+    {
+      "question": "What data source or storage backend handles uploads?",
+      "owner": "engineering"
+    },
+    {
+      "question": "What is the current upload success rate and the expected baseline?",
+      "owner": "engineering"
+    }
+  ]
+}

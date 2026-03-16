@@ -1,0 +1,10 @@
+{
+  "description": "Malformed diff — missing headers and invalid format",
+  "patches": [
+    {
+      "filePath": "src/runtime/types.ts",
+      "operation": "modify",
+      "diff": "This is not a valid diff at all.\nJust some random text.\nNo --- or +++ headers."
+    }
+  ]
+}

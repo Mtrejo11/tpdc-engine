@@ -1,0 +1,27 @@
+{
+  "name": "tpdc",
+  "owner": {
+    "name": "TPDC"
+  },
+  "metadata": {
+    "description": "Technical Product Development Cycle — AI-powered workflow engine"
+  },
+  "plugins": [
+    {
+      "name": "tpdc",
+      "source": "./tpdc-plugin",
+      "description": "AI-powered workflow engine for feature development, bug fixing, refactoring, assessment, planning, and discovery.",
+      "version": "0.1.0",
+      "keywords": [
+        "development-workflow",
+        "code-generation",
+        "bug-fix",
+        "refactoring",
+        "assessment",
+        "planning",
+        "discovery"
+      ],
+      "strict": false
+    }
+  ]
+}

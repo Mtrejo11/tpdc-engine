@@ -1,0 +1,22 @@
+{
+  "sourceTicket": "manual-004",
+  "planTitle": "ADR: Remediate Failing Upload Workflow",
+  "status": "blocked",
+  "appliedChangesSummary": "Execution blocked — plan has unresolved questions.",
+  "touchedArtifacts": [
+    "none"
+  ],
+  "evidence": [
+    "Plan status is 'blocked'; execution cannot proceed until open questions are resolved."
+  ],
+  "stepResults": [
+    {
+      "stepNumber": 1,
+      "title": "Blocked",
+      "status": "blocked",
+      "changeSummary": "No changes applied.",
+      "evidence": "Plan is blocked.",
+      "blockedReason": "All six open questions remain unresolved, and the design's own decision explicitly states that decomposition must be blocked until the affected surface, failure mode, storage backend, and auth model are confirmed. No concrete step can be derived without knowing which workflow is failing or how it fails."
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "plan": {
+    "sourceTicket": "app/fix-login-page",
+    "designTitle": "ADR: Fix Login Page Session Handling",
+    "status": "actionable",
+    "changeStrategy": "Fix the session cookie handling in the login page component to properly redirect after authentication.",
+    "risks": [
+      {
+        "risk": "Session logic is entangled with other auth flows",
+        "trigger": "Changing cookie handling breaks OAuth or SSO flows"
+      }
+    ],
+    "validationPlan": [
+      {
+        "ac": "Login page correctly sets session cookie and redirects",
+        "verification": "Login with valid credentials and confirm redirect to dashboard"
+      }
+    ],
+    "steps": [
+      {
+        "stepNumber": 1,
+        "title": "Fix session cookie handling in LoginPage component",
+        "goal": "Update the login handler to set httpOnly session cookie before redirect.",
+        "surface": "web_ui",
+        "executionContext": "frontend",
+        "stackAssumption": "react",
+        "description": "Modify src/pages/LoginPage.tsx to set the session cookie with httpOnly flag in the login success handler before calling router.push('/dashboard').",
+        "dependencies": [],
+        "acceptanceCriteria": "Session cookie is set with httpOnly flag before redirect."
+      },
+      {
+        "stepNumber": 2,
+        "title": "Update session middleware to validate cookie format",
+        "goal": "Ensure the backend session middleware accepts the new cookie format.",
+        "surface": "api_endpoint",
+        "executionContext": "backend",
+        "stackAssumption": "none",
+        "description": "Modify src/middleware/session.ts to validate the updated session cookie format and reject malformed tokens.",
+        "dependencies": [1],
+        "acceptanceCriteria": "Session middleware validates new cookie format without breaking existing sessions."
+      }
+    ]
+  },
+  "repoRoot": "__ENGINE_ROOT__",
+  "fileHints": ["src/pages/LoginPage.tsx", "src/middleware/session.ts"]
+}

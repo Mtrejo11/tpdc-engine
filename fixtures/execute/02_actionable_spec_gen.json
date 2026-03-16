@@ -1,0 +1,86 @@
+{
+  "sourceTicket": "tpdc-gym/phase-1",
+  "designTitle": "ADR: CLI-Based Spec Generation Capability",
+  "status": "actionable",
+  "changeStrategy": "Begin by installing the intake capability bundle under the Engine's capability installation directory, following the structure established by existing installed capabilities. Once the bundle is in place, create the CLI invocation script that wires a ticket JSON file through runCapability to produce a validated IntakeArtifact. Schema validation and raw output persistence are expected to be handled by the existing runtime, but must be explicitly confirmed — and wired if absent — before the capability is considered complete. Steps are sequenced so that each layer (bundle → CLI → validation → persistence) can be verified in isolation before the next begins.",
+  "risks": [
+    {
+      "risk": "Capability installation path is not standardized, causing the intake bundle to diverge from other installed capabilities",
+      "trigger": "The intake bundle structure deviates from the pattern used by existing installed capabilities, causing the runtime to fail to discover or load it"
+    },
+    {
+      "risk": "LLM output occasionally fails IntakeArtifactSchema validation",
+      "trigger": "Complex or ambiguous ticket inputs cause the LLM to produce fields that violate schema constraints"
+    },
+    {
+      "risk": "CLI timeout causes lost runs on complex inputs",
+      "trigger": "LLM processing exceeds the configured timeout for large or ambiguous ticket inputs"
+    }
+  ],
+  "validationPlan": [
+    {
+      "ac": "User can invoke intake capability via CLI with a ticket JSON file and receive a validated IntakeArtifact.",
+      "verification": "Run the CLI script with a sample ticket JSON file and confirm the output is a valid IntakeArtifact that passes IntakeArtifactSchema validation without errors."
+    },
+    {
+      "ac": "LLM output is validated against IntakeArtifactSchema before being returned.",
+      "verification": "Provide a ticket input designed to produce a schema-violating response and confirm the runtime surfaces a validation error rather than returning invalid output."
+    },
+    {
+      "ac": "Raw LLM output is persisted alongside the validated artifact for debugging.",
+      "verification": "After a successful run, confirm both the validated JSON artifact and the raw output file exist in the artifacts directory."
+    }
+  ],
+  "steps": [
+    {
+      "stepNumber": 1,
+      "title": "Install intake capability bundle",
+      "goal": "Register the intake capability in the Engine's capability installation directory with its prompt, input schema, and output schema.",
+      "surface": "not_applicable",
+      "executionContext": "backend",
+      "stackAssumption": "none",
+      "description": "Create the intake capability directory under the Engine's installed capabilities path, following the structure established by existing installed capabilities. The bundle must include the intake prompt, the input schema definition, and IntakeArtifactSchema as the declared output schema. The capability metadata must be sufficient for the runtime to discover and load it via the standard installation path without special-casing.",
+      "dependencies": [],
+      "acceptanceCriteria": "The intake capability is discoverable and loadable by the Engine runtime using the same path and structure as other installed capabilities."
+    },
+    {
+      "stepNumber": 2,
+      "title": "Create CLI invocation script",
+      "goal": "Implement the CLI entry point that reads a ticket JSON file, invokes the intake capability through runCapability, and emits the validated IntakeArtifact output.",
+      "surface": "not_applicable",
+      "executionContext": "backend",
+      "stackAssumption": "none",
+      "description": "Add a CLI script following the pattern established by existing capability invocation scripts. The script must accept a ticket JSON file as input, invoke the intake capability through the runCapability runtime using ClaudeCodeAdapter, and write the validated IntakeArtifact to output. Validation errors must be surfaced clearly to the caller. A configurable timeout must be supported, defaulting to 300 seconds with an override path via CLI flag or environment variable.",
+      "dependencies": [
+        1
+      ],
+      "acceptanceCriteria": "Running the CLI script with a valid ticket JSON file invokes the intake capability and produces output without runtime errors."
+    },
+    {
+      "stepNumber": 3,
+      "title": "Verify schema validation wiring",
+      "goal": "Confirm that the runtime applies IntakeArtifactSchema validation to LLM output before returning results, and add explicit wiring if absent.",
+      "surface": "not_applicable",
+      "executionContext": "backend",
+      "stackAssumption": "none",
+      "description": "Inspect the runCapability runtime to confirm output schema validation is applied using the schema declared in the capability bundle. If the runtime validates generically against whatever output schema the capability declares, confirm the intake bundle's output schema declaration is correctly set to IntakeArtifactSchema. If explicit wiring is required, add it to the capability invocation path without modifying the schema definition itself.",
+      "dependencies": [
+        2
+      ],
+      "acceptanceCriteria": "A schema-violating LLM response causes the runtime to return a validation error rather than passing invalid output to the caller."
+    },
+    {
+      "stepNumber": 4,
+      "title": "Verify raw output persistence",
+      "goal": "Confirm that raw LLM output is written to the artifacts directory alongside the validated artifact after each run.",
+      "surface": "not_applicable",
+      "executionContext": "backend",
+      "stackAssumption": "none",
+      "description": "Inspect the runCapability runtime and the CLI invocation path to confirm raw LLM output is persisted to the artifacts directory as part of a normal run. If persistence is not implemented, add it to the invocation path so that both the validated JSON artifact and the raw output text are written after every run.",
+      "dependencies": [
+        2
+      ],
+      "acceptanceCriteria": "After a run completes, both the validated IntakeArtifact JSON file and a raw LLM output file exist in the artifacts directory."
+    }
+  ]
+}

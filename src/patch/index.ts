@@ -1,0 +1,20 @@
+export { parseDiff } from "./parseDiff";
+export type { ParsedPatch, DiffHunk, HunkLine, ParseResult, ParseError } from "./parseDiff";
+
+export { dryRunValidate } from "./dryRun";
+export type { DryRunResult, PatchCheckResult, PatchInput } from "./dryRun";
+
+export { checkSafety, defaultSafetyConfig, DEFAULT_DENY_PATTERNS } from "./safetyChecks";
+export type { SafetyConfig, SafetyResult, SafetyViolation } from "./safetyChecks";
+
+export { applyPatches } from "./applyPatch";
+export type { ApplyOptions, ApplyResult, FileApplyResult } from "./applyPatch";
+
+export { gitApplyPatches, buildBranchName, buildCommitMessage } from "./gitIntegration";
+export type { GitApplyOptions, GitApplyResult } from "./gitIntegration";
+
+export { renderPreview, promptConfirmation, confirmWithPreview } from "./confirmationPreview";
+export type { PreviewData, ConfirmationResult } from "./confirmationPreview";
+
+export { relocateHunks } from "./fuzzyMatch";
+export type { HunkRelocation, RelocationResult, FuzzyMatchOptions } from "./fuzzyMatch";

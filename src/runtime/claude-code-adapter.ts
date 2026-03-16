@@ -27,7 +27,7 @@ export class ClaudeCodeAdapter implements LLMAdapter {
     this.modelId = options?.model ?? "sonnet";
     this.maxBudgetUsd = options?.maxBudgetUsd ?? 1;
     this.claudePath = options?.claudePath ?? "claude";
-    this.timeoutMs = options?.timeoutMs ?? 120_000;
+    this.timeoutMs = options?.timeoutMs ?? 300_000;
     this.adapterInfo = {
       adapterId: "claude-code-cli",
       modelId: this.modelId,

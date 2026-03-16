@@ -1,6 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
-import { CapabilityDefinition, CapabilityDefinitionSchema } from "tpdc-protocols";
+import { CapabilityDefinition, CapabilityDefinitionSchema } from "../protocols";
 
 const INSTALLED_DIR = path.resolve(__dirname, "../../capabilities/installed");
 

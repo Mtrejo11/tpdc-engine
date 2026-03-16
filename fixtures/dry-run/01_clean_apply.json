@@ -1,0 +1,10 @@
+{
+  "description": "Cleanly applicable patch — modify types.ts to add a comment",
+  "patches": [
+    {
+      "filePath": "src/runtime/types.ts",
+      "operation": "modify",
+      "diff": "--- a/src/runtime/types.ts\n+++ b/src/runtime/types.ts\n@@ -1,3 +1,4 @@\n+// Adapter types for LLM integration\n export interface AdapterInfo {\n   adapterId: string;\n   modelId: string;\n"
+    }
+  ]
+}

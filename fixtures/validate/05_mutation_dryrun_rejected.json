@@ -1,0 +1,46 @@
+{
+  "execution": {
+    "sourceTicket": "PROJ-302",
+    "planTitle": "ADR: Update API keys in config",
+    "executionMode": "patch",
+    "executionStatus": "completed",
+    "targetFiles": [".env", "src/config.ts"],
+    "changeSummary": "Updated API key references in environment file and config module.",
+    "patches": [
+      {
+        "stepNumber": 1,
+        "filePath": ".env",
+        "operation": "modify",
+        "diff": "--- a/.env\n+++ b/.env\n@@ -1,3 +1,3 @@\n DB_HOST=localhost\n-API_KEY=old_key_123\n+API_KEY=new_key_456\n PORT=3000\n",
+        "justification": "Step 1: Update the API key in the .env file."
+      },
+      {
+        "stepNumber": 2,
+        "filePath": "src/config.ts",
+        "operation": "modify",
+        "diff": "--- a/src/config.ts\n+++ b/src/config.ts\n@@ -1,3 +1,3 @@\n export const config = {\n-  apiKey: process.env.API_KEY || 'fallback',\n+  apiKey: process.env.API_KEY || 'new_fallback',\n   port: Number(process.env.PORT) || 3000,\n",
+        "justification": "Step 2: Update fallback API key in config module."
+      }
+    ]
+  },
+  "mutationContext": {
+    "mode": "mutation",
+    "confirmed": true,
+    "dryRun": {
+      "safe": false,
+      "applicable": 1,
+      "conflicts": 0,
+      "errors": 0,
+      "summary": "1/2 applicable, 1 safety violation",
+      "patchResults": [
+        { "filePath": ".env", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" },
+        { "filePath": "src/config.ts", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" }
+      ],
+      "safetyViolations": [
+        { "type": "denied_file", "filePath": ".env", "detail": "File matches deny pattern" }
+      ]
+    },
+    "apply": null,
+    "git": null
+  }
+}

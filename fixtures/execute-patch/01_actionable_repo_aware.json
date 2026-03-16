@@ -1,0 +1,46 @@
+{
+  "plan": {
+    "sourceTicket": "engine/add-timeout-flag",
+    "designTitle": "ADR: Add configurable timeout flag to CLI",
+    "status": "actionable",
+    "changeStrategy": "Add a --timeout flag to the CLI that overrides the default 300s timeout for LLM calls. The flag should be parsed in the run-capability and run-workflow commands and passed through to the adapter.",
+    "risks": [
+      {
+        "risk": "Timeout value not propagated to adapter layer",
+        "trigger": "Adapter ignores custom timeout and uses its own default"
+      }
+    ],
+    "validationPlan": [
+      {
+        "ac": "CLI accepts --timeout flag and passes value to adapter",
+        "verification": "Run with --timeout 60 and confirm the adapter receives 60000ms"
+      }
+    ],
+    "steps": [
+      {
+        "stepNumber": 1,
+        "title": "Add timeout option to LLMAdapter interface",
+        "goal": "Extend the adapter interface to accept an optional timeout parameter on complete().",
+        "surface": "not_applicable",
+        "executionContext": "backend",
+        "stackAssumption": "none",
+        "description": "Modify src/runtime/types.ts to add an optional timeoutMs parameter to the LLMAdapter.complete() method signature.",
+        "dependencies": [],
+        "acceptanceCriteria": "LLMAdapter interface includes optional timeoutMs in complete() signature."
+      },
+      {
+        "stepNumber": 2,
+        "title": "Parse --timeout flag in CLI",
+        "goal": "Extract --timeout value from CLI args and pass it to the adapter.",
+        "surface": "not_applicable",
+        "executionContext": "backend",
+        "stackAssumption": "none",
+        "description": "In src/cli.ts, parse --timeout from args in run-capability and run-workflow commands. Convert to milliseconds and pass as option to the adapter.",
+        "dependencies": [1],
+        "acceptanceCriteria": "CLI parses --timeout flag and converts to milliseconds for adapter use."
+      }
+    ]
+  },
+  "repoRoot": "__ENGINE_ROOT__",
+  "fileHints": ["src/runtime/types.ts", "src/cli.ts"]
+}

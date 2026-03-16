@@ -1,0 +1,33 @@
+{
+  "title": "Teams cannot efficiently convert vague tickets into actionable work items",
+  "source_ticket": "manual-test/manual-001",
+  "problem_statement": "Engineering tickets often start vague, leaving teams unable to convert them into actionable work without significant rework or clarification cycles.",
+  "affected_users": "Engineering teams and product managers who author, triage, or act on engineering tickets.",
+  "observable_symptom": "Vague tickets enter the engineering workflow without structure or clear acceptance criteria, causing teams to struggle converting them into actionable work.",
+  "acceptance_criteria": [
+    "Given a vague ticket input, the system produces a structured spec containing at minimum a problem statement, affected users, and acceptance criteria.",
+    "Each generated acceptance criterion is binary and testable without subjective judgment.",
+    "The structured spec is produced without requiring manual reformatting by the requester."
+  ],
+  "out_of_scope": [
+    "Automatic implementation or resolution of the ticket contents.",
+    "Integration with any specific ticketing system unless explicitly scoped."
+  ],
+  "assumptions": [
+    "A shared definition of 'structured spec' and its required fields exists or will be defined before implementation.",
+    "The capability targets engineering tickets specifically, not support tickets or other request types."
+  ],
+  "open_questions": [
+    { "question": "What surface or interface will this capability be exposed through (e.g., web UI, CLI, API)?", "owner": "product" },
+    { "question": "What is the expected data source for incoming vague tickets (e.g., Jira, GitHub Issues, free-form text input)?", "owner": "engineering" },
+    { "question": "Is authentication or access control required to use the spec generation capability?", "owner": "engineering" },
+    { "question": "Is there an existing spec schema or template that output must conform to, or does one need to be defined?", "owner": "product" }
+  ],
+  "success_metrics": [
+    "Structured specs generated from vague tickets are accepted by engineering teams without requiring rework or additional clarification in the majority of cases."
+  ],
+  "non_functional_constraints": [
+    "Generated specs must be consistent and reproducible for equivalent inputs.",
+    "The capability must be usable by non-technical stakeholders without specialized training."
+  ]
+}

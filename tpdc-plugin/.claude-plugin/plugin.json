@@ -1,0 +1,19 @@
+{
+  "name": "tpdc",
+  "version": "0.1.0",
+  "description": "Technical Product Development Cycle — AI-powered workflow engine for feature development, bug fixing, refactoring, assessment, planning, and discovery.",
+  "author": {
+    "name": "TPDC"
+  },
+  "repository": "https://github.com/mtrejodev/tpdc-engine",
+  "license": "MIT",
+  "keywords": [
+    "development-workflow",
+    "code-generation",
+    "bug-fix",
+    "refactoring",
+    "code-assessment",
+    "planning",
+    "discovery"
+  ]
+}

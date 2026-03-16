@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "tpdc-engine": "dist/cli.js"
+    "tpdc-engine": "dist/cli.js",
+    "tpdc": "dist/cli.js",
+    "tpdc-mcp": "dist/mcp/server.js"
   },
   "scripts": {
     "build": "tsc",
@@ -14,11 +16,23 @@
     "install-capability": "node dist/cli.js install-capability",
     "list-capabilities": "node dist/cli.js list-capabilities",
     "run-capability": "node dist/cli.js run-capability",
-    "test:intake": "npx tsx scripts/test-intake.ts"
+    "test:intake": "npx tsx scripts/test-intake.ts",
+    "test:fix": "npx tsx scripts/test-fix-command.ts",
+    "test:assess": "npx tsx scripts/test-assess-command.ts",
+    "test:discovery": "npx tsx scripts/test-discovery-command.ts",
+    "test:refactor": "npx tsx scripts/test-refactor-command.ts",
+    "test:plan": "npx tsx scripts/test-plan-command.ts",
+    "test:learning": "npx tsx scripts/test-learning.ts",
+    "test:mutation-ux": "npx tsx scripts/test-mutation-ux.ts",
+    "test:integration": "npx tsx scripts/test-integration.ts",
+    "test:develop": "npx tsx scripts/test-develop.ts",
+    "test:mcp-plugin": "npx tsx scripts/test-mcp-plugin.ts",
+    "test:e2e": "npx ts-node scripts/test-e2e-mutation.ts",
+    "test:validate:mutation": "npx ts-node scripts/test-validate-mutation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "tpdc-protocols": "file:../tpdc-protocols",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "zod": "^4.3.6"
   },
   "devDependencies": {

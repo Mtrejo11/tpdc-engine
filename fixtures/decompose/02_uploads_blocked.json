@@ -1,0 +1,72 @@
+{
+  "title": "ADR: Remediate Failing Upload Workflow",
+  "status": "proposed",
+  "date": "2026-03-09",
+  "sourceTicket": "manual-004",
+  "context": [
+    "Users are reporting upload failures, but the specific workflow, surface, and failure mode are entirely unknown.",
+    "The current state cannot be characterized beyond user complaints; there is no baseline success rate, no identified storage backend, and no confirmed auth model.",
+    "Constraints require that data integrity be preserved for all uploaded content."
+  ],
+  "decision": "We will remediate the identified upload workflow after resolving all six open questions, because the intake lacks sufficient specificity to prescribe a technical approach — the affected surface, failure mode, storage backend, and auth model are all unknown. Until those questions are answered, decomposition must be blocked.",
+  "scope": {
+    "inScope": [
+      "The specific upload workflow confirmed as failing once identified",
+      "Restoration of upload success rate to the pre-complaint baseline",
+      "Validation that the identified failure mode no longer occurs"
+    ],
+    "outOfScope": [
+      "Upload workflows not implicated in the reported complaints",
+      "Redesign of the upload architecture or storage backend",
+      "Performance optimization of uploads not related to the reported failure"
+    ]
+  },
+  "validationPlan": [
+    {
+      "ac": "The identified upload workflow completes successfully under normal operating conditions.",
+      "verification": "Execute the confirmed failing upload workflow end-to-end and observe successful completion."
+    },
+    {
+      "ac": "Users no longer encounter the upload failure that prompted complaints.",
+      "verification": "Monitor complaint volume and upload success rate after deployment."
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Fix targets the wrong workflow, leaving the actual failure unresolved",
+      "trigger": "Open questions answered incompletely before decomposition",
+      "mitigation": "Require written confirmation from owners on all open questions",
+      "detection": "Post-deploy monitoring still shows failure signals"
+    },
+    {
+      "risk": "Remediation introduces data integrity issues",
+      "trigger": "Fix modifies upload handling without accounting for partial-write behavior",
+      "mitigation": "Audit storage backend for orphaned artifacts during investigation",
+      "detection": "Discrepancy between upload attempts and persisted artifacts"
+    },
+    {
+      "risk": "Root cause spans multiple workflows, making a single fix insufficient",
+      "trigger": "Failure is systemic rather than isolated to one upload path",
+      "mitigation": "Check whether failure affects more than one surface before scoping the fix",
+      "detection": "New complaints surface for a different workflow after fix"
+    }
+  ],
+  "alternatives": [
+    {
+      "name": "Broad defensive hardening of all upload paths",
+      "reasonRejected": "Speculative without knowing which path is failing; risks introducing regressions."
+    },
+    {
+      "name": "Rollback to the last known-good deployment",
+      "reasonRejected": "Assumes failure was introduced by a recent code change, which is unconfirmed."
+    }
+  ],
+  "openQuestions": [
+    { "question": "Which specific upload workflow or feature is failing?", "owner": "product" },
+    { "question": "What surface is affected — web, mobile, or API?", "owner": "product" },
+    { "question": "What error messages or failure modes are users observing?", "owner": "product" },
+    { "question": "What is the auth model — are uploads restricted to authenticated users?", "owner": "engineering" },
+    { "question": "What data source or storage backend handles uploads?", "owner": "engineering" },
+    { "question": "What is the current upload success rate and the expected baseline?", "owner": "engineering" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "name": "demo-upload-service",
+  "version": "1.0.0",
+  "description": "A minimal Express upload service for TPDC mutation testing.",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "ts-node src/index.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.0",
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0"
+  }
+}

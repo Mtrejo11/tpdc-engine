@@ -1,0 +1,27 @@
+{
+  "title": "Upload functionality is failing or degraded for users",
+  "source_ticket": "manual-004",
+  "problem_statement": "Users are experiencing problems with uploads, but the specific failure mode, affected surface, and scope are unknown.",
+  "affected_users": "Users who attempt to upload content; exact segment and frequency are unknown.",
+  "observable_symptom": "Users are complaining about uploads; no specific error messages, failure rates, or affected workflows have been identified.",
+  "acceptance_criteria": [
+    "The identified upload workflow completes successfully under normal operating conditions.",
+    "Users no longer encounter the upload failure that prompted complaints."
+  ],
+  "open_questions": [
+    { "question": "Which specific upload workflow or feature is failing?", "owner": "product" },
+    { "question": "What surface is affected — web, mobile, or API?", "owner": "product" },
+    { "question": "What error messages or failure modes are users observing?", "owner": "product" },
+    { "question": "What is the auth model — are uploads restricted to authenticated users?", "owner": "engineering" },
+    { "question": "What data source or storage backend handles uploads?", "owner": "engineering" },
+    { "question": "What is the current upload success rate and the expected baseline?", "owner": "engineering" }
+  ],
+  "success_metrics": [
+    "Upload success rate returns to pre-complaint baseline.",
+    "Volume of user complaints about uploads decreases to zero or near-zero."
+  ],
+  "non_functional_constraints": [
+    "Data integrity must be preserved for all uploaded content.",
+    "Upload reliability must meet user expectations for the identified workflow."
+  ]
+}

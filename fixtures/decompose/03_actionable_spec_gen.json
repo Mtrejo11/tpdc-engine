@@ -1,0 +1,70 @@
+{
+  "title": "ADR: CLI-Based Spec Generation Capability",
+  "status": "proposed",
+  "date": "2026-03-09",
+  "sourceTicket": "tpdc-gym/phase-1",
+  "context": [
+    "Engineering tickets frequently arrive as vague, unstructured text, forcing teams into clarification cycles before work can begin.",
+    "The TPDC Engine already has a capability runtime (runCapability), LLM adapter infrastructure (ClaudeCodeAdapter via CLI), and schema validation (Zod). The intake prompt and IntakeArtifact schema are validated and production-ready.",
+    "Constraints: the capability is consumed via CLI only; no web UI or API surface is needed. The spec schema is defined (IntakeArtifactSchema). Authentication is not required — this is a local developer tool."
+  ],
+  "decision": "We will register the intake capability as an installable Engine capability that accepts free-form ticket text via the CLI and produces a validated IntakeArtifact JSON, because the capability runtime, adapter, and schema already exist and only need to be formally connected through the Engine's capability installation and invocation path.",
+  "scope": {
+    "inScope": [
+      "Registration of intake as an installed Engine capability with prompt, input schema, and output schema",
+      "CLI invocation path: user runs a command with a ticket JSON file and receives a validated IntakeArtifact",
+      "Schema validation of LLM output against IntakeArtifactSchema before returning results",
+      "Raw output persistence for debugging and audit"
+    ],
+    "outOfScope": [
+      "Web UI, API, or any non-CLI delivery surface",
+      "Integration with external ticketing systems (Jira, GitHub Issues)",
+      "Authentication or access control",
+      "Modification of the intake prompt or IntakeArtifact schema"
+    ]
+  },
+  "validationPlan": [
+    {
+      "ac": "User can invoke intake capability via CLI with a ticket JSON file and receive a validated IntakeArtifact.",
+      "verification": "Run the CLI command with a sample ticket JSON; confirm the output is a valid IntakeArtifact that passes schema validation."
+    },
+    {
+      "ac": "LLM output is validated against IntakeArtifactSchema before being returned.",
+      "verification": "Submit a ticket that produces edge-case output; confirm validation errors are surfaced when schema constraints are violated."
+    },
+    {
+      "ac": "Raw LLM output is persisted alongside the validated artifact for debugging.",
+      "verification": "After a run, confirm that both the validated JSON and raw output text file exist in the artifacts directory."
+    }
+  ],
+  "risks": [
+    {
+      "risk": "Capability installation path is not standardized, causing manual file copying to break on updates",
+      "trigger": "Prompt or schema is updated in the Gym but the Engine's installed copy is stale",
+      "mitigation": "Document the export-install workflow; version the capability bundle so staleness is detectable",
+      "detection": "Engine logs a capability version mismatch warning when a newer bundle exists"
+    },
+    {
+      "risk": "LLM output occasionally fails schema validation due to field length or format violations",
+      "trigger": "Complex or ambiguous inputs cause the LLM to produce verbose fields exceeding schema limits",
+      "mitigation": "Prompt includes explicit field length constraints and a self-check checklist",
+      "detection": "Validation error rate tracked in test suite reports; any rate above 10% triggers prompt review"
+    },
+    {
+      "risk": "CLI timeout causes lost runs on complex inputs",
+      "trigger": "LLM takes longer than the configured timeout to produce output for large or ambiguous inputs",
+      "mitigation": "Set a generous default timeout (300s); allow per-run override via CLI flag or env var",
+      "detection": "Timeout errors in run metadata; test suite tracks timeout frequency"
+    }
+  ],
+  "alternatives": [
+    {
+      "name": "Expose intake as an HTTP API endpoint instead of CLI",
+      "reasonRejected": "No API surface is needed — this is a local developer tool. Adding an HTTP layer increases complexity without user benefit."
+    },
+    {
+      "name": "Skip formal capability registration and hardcode intake in the CLI",
+      "reasonRejected": "Hardcoding prevents the Engine from supporting additional capabilities through the same installation path, undermining the plugin-first architecture."
+    }
+  ]
+}

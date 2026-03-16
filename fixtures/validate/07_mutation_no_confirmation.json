@@ -1,0 +1,45 @@
+{
+  "execution": {
+    "sourceTicket": "PROJ-304",
+    "planTitle": "ADR: Add pagination to list endpoint",
+    "executionMode": "patch",
+    "executionStatus": "completed",
+    "targetFiles": ["src/routes/list.ts", "src/utils/pagination.ts"],
+    "changeSummary": "Added pagination utility and applied it to the GET /list endpoint. Created pagination.ts with offset/limit helpers and modified list.ts to use them.",
+    "patches": [
+      {
+        "stepNumber": 1,
+        "filePath": "src/utils/pagination.ts",
+        "operation": "create",
+        "diff": "--- /dev/null\n+++ b/src/utils/pagination.ts\n@@ -0,0 +1,8 @@\n+export interface PaginationParams { offset: number; limit: number; }\n+\n+export function parsePagination(query: Record<string, string>): PaginationParams {\n+  return {\n+    offset: Math.max(0, parseInt(query.offset || '0', 10)),\n+    limit: Math.min(100, Math.max(1, parseInt(query.limit || '20', 10))),\n+  };\n+}\n",
+        "justification": "Step 1: Create pagination utility with safe defaults and bounds checking."
+      },
+      {
+        "stepNumber": 2,
+        "filePath": "src/routes/list.ts",
+        "operation": "modify",
+        "diff": "--- a/src/routes/list.ts\n+++ b/src/routes/list.ts\n@@ -1,5 +1,7 @@\n import { Router } from 'express';\n import { getItems } from '../controllers/list';\n+import { parsePagination } from '../utils/pagination';\n \n const router = Router();\n-router.get('/list', async (req, res) => res.json(await getItems()));\n+router.get('/list', async (req, res) => {\n+  const { offset, limit } = parsePagination(req.query as Record<string, string>);\n+  res.json(await getItems({ offset, limit }));\n+});\n",
+        "justification": "Step 2: Apply pagination to GET /list endpoint using the new utility."
+      }
+    ],
+    "assumptions": ["Express.js router pattern", "getItems accepts pagination params"]
+  },
+  "mutationContext": {
+    "mode": "mutation",
+    "confirmed": false,
+    "dryRun": {
+      "safe": true,
+      "applicable": 2,
+      "conflicts": 0,
+      "errors": 0,
+      "summary": "2/2 applicable",
+      "patchResults": [
+        { "filePath": "src/utils/pagination.ts", "operation": "create", "status": "applicable", "detail": "File does not exist; create is valid" },
+        { "filePath": "src/routes/list.ts", "operation": "modify", "status": "applicable", "detail": "1 hunk(s) match file content" }
+      ],
+      "safetyViolations": []
+    },
+    "apply": null,
+    "git": null
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "description": "Context mismatch — diff expects lines that don't match actual file content",
+  "patches": [
+    {
+      "filePath": "src/runtime/types.ts",
+      "operation": "modify",
+      "diff": "--- a/src/runtime/types.ts\n+++ b/src/runtime/types.ts\n@@ -7,7 +7,7 @@\n export interface LLMAdapter {\n   readonly adapterInfo: AdapterInfo;\n   readonly modelId: string;\n-  complete(prompt: string, input: string, options: RequestOptions): Promise<string>;\n+  complete(prompt: string, input: string, options?: RequestOptions): Promise<string>;\n }\n"
+    }
+  ]
+}
