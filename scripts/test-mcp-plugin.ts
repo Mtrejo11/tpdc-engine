@@ -134,8 +134,8 @@ console.log("\n[Test 6] MCP config validation\n");
 
   const config = JSON.parse(fs.readFileSync(mcpPath, "utf-8"));
   assert(config.tpdc !== undefined, "Has 'tpdc' server entry");
-  assert(config.tpdc.command === "node", "Command is node");
-  assert(config.tpdc.args[0].includes("server.js"), "Args point to server.js");
+  assert(config.tpdc.command === "bash", "Command is bash");
+  assert(config.tpdc.args[0].includes("start-mcp.sh"), "Args point to start-mcp.sh");
   assert(config.tpdc.env !== undefined, "Has env config");
 }
 
