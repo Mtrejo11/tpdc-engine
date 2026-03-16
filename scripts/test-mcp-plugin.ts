@@ -121,7 +121,7 @@ console.log("\n[Test 5] Skill frontmatter validation\n");
     assert(content.includes(`name: ${skill}`), `${skill} has name field`);
     assert(content.includes("description:"), `${skill} has description`);
     assert(content.includes("allowed-tools:"), `${skill} has allowed-tools`);
-    assert(content.includes("mcp__tpdc__"), `${skill} references MCP tools`);
+    assert(content.includes("mcp__plugin_tpdc_tpdc__"), `${skill} references MCP tools`);
   }
 }
 
@@ -215,9 +215,9 @@ console.log("\n[Test 10] MCP tool handler switch coverage\n");
 console.log("\n[Test 11] Skill allowed-tools reference valid MCP tools\n");
 {
   const validMcpTools = [
-    "mcp__tpdc__tpdc_develop", "mcp__tpdc__tpdc_discovery", "mcp__tpdc__tpdc_assess",
-    "mcp__tpdc__tpdc_plan", "mcp__tpdc__tpdc_solve", "mcp__tpdc__tpdc_fix",
-    "mcp__tpdc__tpdc_refactor", "mcp__tpdc__tpdc_show", "mcp__tpdc__tpdc_diff",
+    "mcp__plugin_tpdc_tpdc__tpdc_develop", "mcp__plugin_tpdc_tpdc__tpdc_discovery", "mcp__plugin_tpdc_tpdc__tpdc_assess",
+    "mcp__plugin_tpdc_tpdc__tpdc_plan", "mcp__plugin_tpdc_tpdc__tpdc_solve", "mcp__plugin_tpdc_tpdc__tpdc_fix",
+    "mcp__plugin_tpdc_tpdc__tpdc_refactor", "mcp__plugin_tpdc_tpdc__tpdc_show", "mcp__plugin_tpdc_tpdc__tpdc_diff",
   ];
 
   const skills = fs.readdirSync(SKILLS_DIR).filter(

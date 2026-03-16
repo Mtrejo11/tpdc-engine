@@ -33,12 +33,12 @@ TPDC provides an MCP server (`tpdc`) that exposes the engine as structured tools
 
 The following MCP tools are available when this plugin is active:
 
-- `mcp__tpdc__tpdc_develop` — End-to-end workflow (feature/bug/refactor)
-- `mcp__tpdc__tpdc_discovery` — Discovery and framing
-- `mcp__tpdc__tpdc_assess` — Assessment and audit
-- `mcp__tpdc__tpdc_plan` — Implementation planning
-- `mcp__tpdc__tpdc_solve` — Full pipeline execution
-- `mcp__tpdc__tpdc_fix` — Bug-fix flow
-- `mcp__tpdc__tpdc_refactor` — Structural improvement
-- `mcp__tpdc__tpdc_show` — Run inspection
-- `mcp__tpdc__tpdc_diff` — Patch diff viewer
+- `mcp__plugin_tpdc_tpdc__tpdc_develop` — End-to-end workflow (feature/bug/refactor)
+- `mcp__plugin_tpdc_tpdc__tpdc_discovery` — Discovery and framing
+- `mcp__plugin_tpdc_tpdc__tpdc_assess` — Assessment and audit
+- `mcp__plugin_tpdc_tpdc__tpdc_plan` — Implementation planning
+- `mcp__plugin_tpdc_tpdc__tpdc_solve` — Full pipeline execution
+- `mcp__plugin_tpdc_tpdc__tpdc_fix` — Bug-fix flow
+- `mcp__plugin_tpdc_tpdc__tpdc_refactor` — Structural improvement
+- `mcp__plugin_tpdc_tpdc__tpdc_show` — Run inspection
+- `mcp__plugin_tpdc_tpdc__tpdc_diff` — Patch diff viewer

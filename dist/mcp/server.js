@@ -165,6 +165,44 @@ async function resolveRepoRoot(explicit) {
     }
     return undefined;
 }
+// ── Progress streaming ───────────────────────────────────────────────
+function sendProgress(message) {
+    if (_server) {
+        try {
+            _server.sendLoggingMessage({
+                level: "info",
+                data: message,
+            });
+        }
+        catch {
+            // Best-effort — client may not support logging
+        }
+    }
+}
+/**
+ * Wraps a workflow dispatch call with stage progress logging.
+ * Intercepts console.log from the workflow to forward as MCP progress.
+ */
+async function withProgress(label, fn) {
+    sendProgress(`[TPDC] Starting: ${label}`);
+    // Capture console.log to forward as progress
+    const originalLog = console.log;
+    console.log = (...args) => {
+        const msg = args.map(String).join(" ");
+        // Forward workflow stage progress lines
+        if (msg.includes("running...") || msg.includes("PASSED") || msg.includes("BLOCKED") || msg.includes("FAILED") || msg.includes("[Workflow]")) {
+            sendProgress(msg.trim());
+        }
+    };
+    try {
+        const result = await fn();
+        sendProgress(`[TPDC] Completed: ${label}`);
+        return result;
+    }
+    finally {
+        console.log = originalLog;
+    }
+}
 // ── Tool handlers ────────────────────────────────────────────────────
 async function handleTool(name, args) {
     const llm = createAdapter();
@@ -181,14 +219,14 @@ async function handleTool(name, args) {
                 confirmApply: args.confirm_apply,
                 repoRoot,
             };
-            const result = await (0, develop_1.runDevelop)(parsed.mode, parsed.request, flags, { llm, quiet: true });
+            const result = await withProgress(`develop ${mode}`, () => (0, develop_1.runDevelop)(parsed.mode, parsed.request, flags, { llm, quiet: false }));
             return result.output;
         }
         case "tpdc_discovery":
         case "tpdc_assess":
         case "tpdc_plan": {
             const command = name.replace("tpdc_", "");
-            const result = await (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags: {} }, { llm, quiet: true });
+            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags: {} }, { llm, quiet: false }));
             return result.output;
         }
         case "tpdc_solve":
@@ -201,7 +239,7 @@ async function handleTool(name, args) {
                 confirmApply: args.confirm_apply,
                 repoRoot,
             };
-            const result = await (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags }, { llm, quiet: true });
+            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags }, { llm, quiet: false }));
             return result.output;
         }
         case "tpdc_show": {

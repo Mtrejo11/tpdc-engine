@@ -1,7 +1,7 @@
 ---
 name: diff
 description: Show patch diffs for a mutation run. Use when the user asks to "show diff", "show patches", "what changed in run", or "see the changes".
-allowed-tools: mcp__tpdc__tpdc_diff
+allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_diff
 metadata:
   author: tpdc
   version: "0.1"

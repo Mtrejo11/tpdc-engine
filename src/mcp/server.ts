@@ -175,6 +175,47 @@ async function resolveRepoRoot(explicit?: string): Promise<string | undefined> {
   return undefined;
 }
 
+// ── Progress streaming ───────────────────────────────────────────────
+
+function sendProgress(message: string): void {
+  if (_server) {
+    try {
+      _server.sendLoggingMessage({
+        level: "info",
+        data: message,
+      });
+    } catch {
+      // Best-effort — client may not support logging
+    }
+  }
+}
+
+/**
+ * Wraps a workflow dispatch call with stage progress logging.
+ * Intercepts console.log from the workflow to forward as MCP progress.
+ */
+async function withProgress<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  sendProgress(`[TPDC] Starting: ${label}`);
+
+  // Capture console.log to forward as progress
+  const originalLog = console.log;
+  console.log = (...args: unknown[]) => {
+    const msg = args.map(String).join(" ");
+    // Forward workflow stage progress lines
+    if (msg.includes("running...") || msg.includes("PASSED") || msg.includes("BLOCKED") || msg.includes("FAILED") || msg.includes("[Workflow]")) {
+      sendProgress(msg.trim());
+    }
+  };
+
+  try {
+    const result = await fn();
+    sendProgress(`[TPDC] Completed: ${label}`);
+    return result;
+  } finally {
+    console.log = originalLog;
+  }
+}
+
 // ── Tool handlers ────────────────────────────────────────────────────
 
 async function handleTool(name: string, args: Record<string, unknown>): Promise<string> {
@@ -193,7 +234,9 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         confirmApply: args.confirm_apply as boolean | undefined,
         repoRoot,
       };
-      const result = await runDevelop(parsed.mode, parsed.request, flags, { llm, quiet: true });
+      const result = await withProgress(`develop ${mode}`, () =>
+        runDevelop(parsed.mode, parsed.request, flags, { llm, quiet: false }),
+      );
       return result.output;
     }
 
@@ -201,9 +244,11 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     case "tpdc_assess":
     case "tpdc_plan": {
       const command = name.replace("tpdc_", "");
-      const result = await dispatch(
-        { command: command as any, args: args.request as string, flags: {} },
-        { llm, quiet: true },
+      const result = await withProgress(command, () =>
+        dispatch(
+          { command: command as any, args: args.request as string, flags: {} },
+          { llm, quiet: false },
+        ),
       );
       return result.output;
     }
@@ -218,9 +263,11 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
         confirmApply: args.confirm_apply as boolean | undefined,
         repoRoot,
       };
-      const result = await dispatch(
-        { command: command as any, args: args.request as string, flags },
-        { llm, quiet: true },
+      const result = await withProgress(command, () =>
+        dispatch(
+          { command: command as any, args: args.request as string, flags },
+          { llm, quiet: false },
+        ),
       );
       return result.output;
     }

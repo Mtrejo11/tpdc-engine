@@ -1,7 +1,7 @@
 ---
 name: fix
 description: Bug-fix flow with normalization. Extracts platform, component, and behavior from bug reports. Supports mutation mode. Use when the user reports a bug, asks to "fix a bug", "debug", or describes broken behavior.
-allowed-tools: mcp__tpdc__tpdc_fix, mcp__tpdc__tpdc_show, mcp__tpdc__tpdc_diff
+allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_fix, mcp__plugin_tpdc_tpdc__tpdc_show, mcp__plugin_tpdc_tpdc__tpdc_diff
 metadata:
   author: tpdc
   version: "0.1"

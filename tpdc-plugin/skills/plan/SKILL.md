@@ -1,7 +1,7 @@
 ---
 name: plan
 description: Technical implementation plan with ordered phases, dependencies, and validation approach. No patches. Use when the user asks to "plan", "create a plan", "implementation plan", or "how would we build this".
-allowed-tools: mcp__tpdc__tpdc_plan
+allowed-tools: mcp__plugin_tpdc_tpdc__tpdc_plan
 metadata:
   author: tpdc
   version: "0.1"
