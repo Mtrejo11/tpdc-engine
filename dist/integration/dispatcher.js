@@ -328,8 +328,8 @@ function learnAndSave(run, command) {
         (0, local_1.saveArtifact)(run.workflowId, "learning", learning);
         (0, learning_1.aggregateLearning)(learning);
     }
-    catch {
-        // Best-effort
+    catch (err) {
+        process.stderr.write(`[TPDC] Warning: learning extraction failed: ${err}\n`);
     }
 }
 //# sourceMappingURL=dispatcher.js.map

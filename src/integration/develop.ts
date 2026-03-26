@@ -17,7 +17,7 @@
  *   - user declines confirmation → summarize without mutation
  */
 
-import { DevelopMode, ParsedFlags } from "./parser";
+import { DevelopMode, ParsedFlags, toCommand } from "./parser";
 import { dispatch, DispatchResult, DispatchOptions } from "./dispatcher";
 import { LLMAdapter } from "../runtime/types";
 import { loadRun } from "../storage/runs";
@@ -199,7 +199,7 @@ async function runStep(
 ): Promise<DevelopStep> {
   try {
     const result = await dispatch(
-      { command: command as any, args: request, flags },
+      { command: toCommand(command), args: request, flags },
       options,
     );
 

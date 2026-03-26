@@ -98,6 +98,12 @@ class ClaudeCodeAdapter {
                 settle(() => resolve(stdout));
             });
             // Write the prompt to stdin and close it
+            child.stdin.on("error", (err) => {
+                if (err.code !== "EPIPE") {
+                    clearTimeout(timer);
+                    settle(() => reject(err));
+                }
+            });
             child.stdin.write(stdinContent);
             child.stdin.end();
         });

@@ -136,6 +136,12 @@ export class ClaudeCodeAdapter implements LLMAdapter {
       });
 
       // Write the prompt to stdin and close it
+      child.stdin.on("error", (err) => {
+        if ((err as NodeJS.ErrnoException).code !== "EPIPE") {
+          clearTimeout(timer);
+          settle(() => reject(err));
+        }
+      });
       child.stdin.write(stdinContent);
       child.stdin.end();
     });

@@ -45,6 +45,16 @@ const VALID_COMMANDS: TpdcCommand[] = [
 ];
 
 /**
+ * Safely convert a string to a TpdcCommand, or throw.
+ */
+export function toCommand(s: string): TpdcCommand {
+  if (!VALID_COMMANDS.includes(s as TpdcCommand)) {
+    throw new Error(`Unknown TPDC command: "${s}"`);
+  }
+  return s as TpdcCommand;
+}
+
+/**
  * Parse an explicit TPDC invocation from text.
  *
  * Returns null if the text does not contain an explicit `tpdc:<command>` invocation.

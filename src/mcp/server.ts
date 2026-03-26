@@ -14,7 +14,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { dispatch, DispatchResult } from "../integration/dispatcher";
-import { parseDevelopArgs } from "../integration/parser";
+import { parseDevelopArgs, toCommand } from "../integration/parser";
 import { runDevelop } from "../integration/develop";
 import { resumeWorkflow, ResumeAnswer } from "../runtime/resume";
 import { renderWorkflowSummary } from "../runtime/workflow";
@@ -271,10 +271,10 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     case "tpdc_discovery":
     case "tpdc_assess":
     case "tpdc_plan": {
-      const command = name.replace("tpdc_", "");
+      const command = toCommand(name.replace("tpdc_", ""));
       const result = await withProgress(command, () =>
         dispatch(
-          { command: command as any, args: args.request as string, flags: {} },
+          { command, args: args.request as string, flags: {} },
           { llm, quiet: false },
         ),
       );
@@ -284,7 +284,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     case "tpdc_solve":
     case "tpdc_fix":
     case "tpdc_refactor": {
-      const command = name.replace("tpdc_", "");
+      const command = toCommand(name.replace("tpdc_", ""));
       const repoRoot = await resolveRepoRoot(args.repo_root as string | undefined);
       const flags = {
         apply: args.apply as boolean | undefined,
@@ -293,7 +293,7 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
       };
       const result = await withProgress(command, () =>
         dispatch(
-          { command: command as any, args: args.request as string, flags },
+          { command, args: args.request as string, flags },
           { llm, quiet: false },
         ),
       );

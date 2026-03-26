@@ -253,21 +253,21 @@ async function handleTool(name, args) {
         case "tpdc_discovery":
         case "tpdc_assess":
         case "tpdc_plan": {
-            const command = name.replace("tpdc_", "");
-            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags: {} }, { llm, quiet: false }));
+            const command = (0, parser_1.toCommand)(name.replace("tpdc_", ""));
+            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command, args: args.request, flags: {} }, { llm, quiet: false }));
             return result.output;
         }
         case "tpdc_solve":
         case "tpdc_fix":
         case "tpdc_refactor": {
-            const command = name.replace("tpdc_", "");
+            const command = (0, parser_1.toCommand)(name.replace("tpdc_", ""));
             const repoRoot = await resolveRepoRoot(args.repo_root);
             const flags = {
                 apply: args.apply,
                 confirmApply: args.confirm_apply,
                 repoRoot,
             };
-            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command: command, args: args.request, flags }, { llm, quiet: false }));
+            const result = await withProgress(command, () => (0, dispatcher_1.dispatch)({ command, args: args.request, flags }, { llm, quiet: false }));
             return result.output;
         }
         case "tpdc_show": {

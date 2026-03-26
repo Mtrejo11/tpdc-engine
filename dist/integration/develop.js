@@ -20,6 +20,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runDevelop = runDevelop;
 exports.renderDevelopResult = renderDevelopResult;
+const parser_1 = require("./parser");
 const dispatcher_1 = require("./dispatcher");
 const runs_1 = require("../storage/runs");
 const local_1 = require("../storage/local");
@@ -118,7 +119,7 @@ async function runRefactorFlow(request, flags, options) {
 // ── Step runner ──────────────────────────────────────────────────────
 async function runStep(name, command, request, flags, options) {
     try {
-        const result = await (0, dispatcher_1.dispatch)({ command: command, args: request, flags }, options);
+        const result = await (0, dispatcher_1.dispatch)({ command: (0, parser_1.toCommand)(command), args: request, flags }, options);
         const status = result.error ? "failed"
             : result.verdict === "blocked" || result.verdict === "inconclusive" ? "blocked"
                 : "passed";

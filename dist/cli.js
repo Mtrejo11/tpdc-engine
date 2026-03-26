@@ -77,8 +77,8 @@ function learnFromRun(run, command) {
         (0, local_1.saveArtifact)(run.workflowId, "learning", learning);
         (0, learning_1.aggregateLearning)(learning);
     }
-    catch {
-        // Learning is best-effort — never block the workflow
+    catch (err) {
+        process.stderr.write(`[TPDC] Warning: learning extraction failed: ${err}\n`);
     }
 }
 function createAdapter() {

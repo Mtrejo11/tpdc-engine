@@ -46,8 +46,8 @@ function learnFromRun(run: import("./storage/runs").RunSummary, command: string)
     const learning = extractLearnings(run, command);
     saveArtifact(run.workflowId, "learning", learning);
     aggregateLearning(learning);
-  } catch {
-    // Learning is best-effort — never block the workflow
+  } catch (err) {
+    process.stderr.write(`[TPDC] Warning: learning extraction failed: ${err}\n`);
   }
 }
 

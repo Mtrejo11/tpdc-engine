@@ -28,6 +28,10 @@ export interface ParsedFlags {
     repoRoot?: string;
 }
 /**
+ * Safely convert a string to a TpdcCommand, or throw.
+ */
+export declare function toCommand(s: string): TpdcCommand;
+/**
  * Parse an explicit TPDC invocation from text.
  *
  * Returns null if the text does not contain an explicit `tpdc:<command>` invocation.

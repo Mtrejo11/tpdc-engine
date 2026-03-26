@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import { z } from "zod";
 
 const ARTIFACTS_DIR = path.resolve(__dirname, "../../artifacts");
 
@@ -31,4 +32,19 @@ export function loadArtifact(runId: string, capabilityId: string): unknown | nul
   } catch {
     return null;
   }
+}
+
+/**
+ * Load and validate an artifact against a Zod schema.
+ * Returns null if the artifact is missing, corrupt, or fails validation.
+ */
+export function loadTypedArtifact<T>(
+  runId: string,
+  capabilityId: string,
+  schema: z.ZodType<T>,
+): T | null {
+  const raw = loadArtifact(runId, capabilityId);
+  if (raw === null) return null;
+  const result = schema.safeParse(raw);
+  return result.success ? result.data : null;
 }

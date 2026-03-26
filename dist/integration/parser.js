@@ -17,12 +17,22 @@
  *   tpdc:show  (no args — list recent)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.toCommand = toCommand;
 exports.parseInvocation = parseInvocation;
 exports.isTpdcInvocation = isTpdcInvocation;
 exports.parseDevelopArgs = parseDevelopArgs;
 const VALID_COMMANDS = [
     "discovery", "assess", "plan", "solve", "fix", "refactor", "show", "diff", "develop",
 ];
+/**
+ * Safely convert a string to a TpdcCommand, or throw.
+ */
+function toCommand(s) {
+    if (!VALID_COMMANDS.includes(s)) {
+        throw new Error(`Unknown TPDC command: "${s}"`);
+    }
+    return s;
+}
 /**
  * Parse an explicit TPDC invocation from text.
  *

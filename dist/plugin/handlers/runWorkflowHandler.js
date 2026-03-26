@@ -7,6 +7,7 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.runWorkflowHandler = runWorkflowHandler;
+const zod_1 = require("zod");
 const workflow_1 = require("../../runtime/workflow");
 const local_1 = require("../../storage/local");
 async function runWorkflowHandler(input, options) {
@@ -39,6 +40,23 @@ async function runWorkflowHandler(input, options) {
         ...enriched,
     };
 }
+// Lightweight schemas for safe enrichment reads
+const DecomposeEnrichSchema = zod_1.z.object({
+    status: zod_1.z.string().optional(),
+    blockedReason: zod_1.z.string().optional(),
+    unresolvedQuestions: zod_1.z.array(zod_1.z.object({
+        question: zod_1.z.string(),
+        owner: zod_1.z.string(),
+    })).optional(),
+}).passthrough();
+const ValidateEnrichSchema = zod_1.z.object({
+    score: zod_1.z.number().optional(),
+    findings: zod_1.z.array(zod_1.z.object({
+        category: zod_1.z.string(),
+        severity: zod_1.z.string(),
+        description: zod_1.z.string(),
+    })).optional(),
+}).passthrough();
 /**
  * Load saved stage artifacts to extract open questions, findings, and score.
  * This reads from disk — the same artifacts the orchestrator already persisted.
@@ -46,25 +64,23 @@ async function runWorkflowHandler(input, options) {
 function enrichFromArtifacts(result) {
     const enriched = {};
     // Extract open questions from decompose artifact
-    const decompose = (0, local_1.loadArtifact)(result.workflowId, "decompose");
+    const decompose = (0, local_1.loadTypedArtifact)(result.workflowId, "decompose", DecomposeEnrichSchema);
     if (decompose) {
         if (decompose.status === "blocked" && decompose.blockedReason) {
             enriched.blockReason = decompose.blockedReason;
         }
-        const questions = decompose.unresolvedQuestions;
-        if (questions && questions.length > 0) {
-            enriched.openQuestions = questions;
+        if (decompose.unresolvedQuestions && decompose.unresolvedQuestions.length > 0) {
+            enriched.openQuestions = decompose.unresolvedQuestions;
         }
     }
     // Extract score and findings from validate artifact
-    const validate = (0, local_1.loadArtifact)(result.workflowId, "validate");
+    const validate = (0, local_1.loadTypedArtifact)(result.workflowId, "validate", ValidateEnrichSchema);
     if (validate) {
-        if (typeof validate.score === "number") {
+        if (validate.score !== undefined) {
             enriched.score = validate.score;
         }
-        const findings = validate.findings;
-        if (findings && findings.length > 0) {
-            enriched.findings = findings;
+        if (validate.findings && validate.findings.length > 0) {
+            enriched.findings = validate.findings;
         }
     }
     return enriched;

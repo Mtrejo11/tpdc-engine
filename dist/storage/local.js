@@ -36,6 +36,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.saveArtifact = saveArtifact;
 exports.saveRawOutput = saveRawOutput;
 exports.loadArtifact = loadArtifact;
+exports.loadTypedArtifact = loadTypedArtifact;
 const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const ARTIFACTS_DIR = path.resolve(__dirname, "../../artifacts");
@@ -63,5 +64,16 @@ function loadArtifact(runId, capabilityId) {
     catch {
         return null;
     }
+}
+/**
+ * Load and validate an artifact against a Zod schema.
+ * Returns null if the artifact is missing, corrupt, or fails validation.
+ */
+function loadTypedArtifact(runId, capabilityId, schema) {
+    const raw = loadArtifact(runId, capabilityId);
+    if (raw === null)
+        return null;
+    const result = schema.safeParse(raw);
+    return result.success ? result.data : null;
 }
 //# sourceMappingURL=local.js.map

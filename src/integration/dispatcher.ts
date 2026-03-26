@@ -368,7 +368,7 @@ function learnAndSave(run: RunSummary, command: string): void {
     const learning = extractLearnings(run, command);
     saveArtifact(run.workflowId, "learning", learning);
     aggregateLearning(learning);
-  } catch {
-    // Best-effort
+  } catch (err) {
+    process.stderr.write(`[TPDC] Warning: learning extraction failed: ${err}\n`);
   }
 }
