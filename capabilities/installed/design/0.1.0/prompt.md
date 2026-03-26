@@ -10,7 +10,10 @@ Given a validated intake spec, produce a **lightweight ADR** that frames the key
 
 Your output must be **implementation-agnostic** (no code). Do not produce architecture diagrams, data flow sequences, interface contracts, or component inventories — those belong to later capabilities (decompose / execute).
 
-If the architecture details required to complete a section are unknown, **do not invent them**. Move the uncertainty into open_questions instead.
+When architecture details are unknown, apply this priority:
+1. **Infer from context** — if the intake spec, codebase, or domain conventions strongly imply a detail, state it as an assumption in the decision and proceed.
+2. **Choose a reasonable default** — when multiple valid options exist and the choice does not fundamentally alter the architecture, pick the most common/standard option and document it as an assumption.
+3. **Escalate only critical unknowns** — add to `openQuestions` ONLY when the unknown would materially change the architecture direction, target platform, data model, or security boundary. Implementation-level details (specific APIs, UI patterns, naming conventions) should never block the design.
 
 ## Inputs
 You will receive a validated intake artifact (IntakeArtifact JSON) containing:
@@ -59,18 +62,22 @@ At least 2 alternatives:
 - Alternative B: <name> — why rejected
 
 ### 7) Open Questions
-Only include questions that:
-- block decomposition OR
-- materially change the decision
-Each question must name an owner.
+Only include questions that meet **ALL** of these criteria:
+- The answer would fundamentally change the architecture approach (not just implementation details)
+- The question cannot be resolved by choosing a reasonable default
+- Without an answer, decomposition cannot produce even a best-effort plan
 
-Carry forward any unresolved open_questions from the intake spec. Add new ones only if the design decision introduces new unknowns.
+Each question must name an owner and a `severity`:
+- `critical` — blocks decomposition entirely (e.g., unknown target platform, unknown data model)
+- `advisory` — useful to know but decomposition can proceed with a stated assumption
+
+Carry forward unresolved `critical` open_questions from the intake spec. Demote intake questions to `advisory` if the design decision resolves or sidesteps the uncertainty. Aim for **zero** critical open questions — a design that requires external answers to proceed is a design that hasn't made enough decisions.
 
 ## Quality Bar (strict)
 - Do NOT write code or pseudo-code.
 - Do NOT invent architecture, components, data flows, or interfaces.
 - Do NOT speculate about system internals when the intake spec doesn't describe them.
-- If a key detail is unknown, put it in **Open Questions** instead of guessing.
+- If a key detail is unknown, prefer stating a reasonable assumption over adding an open question. Only escalate to **Open Questions** when the unknown is critical and cannot be defaulted.
 - The ADR must be actionable: Decomposition should be able to derive steps from it without re-deciding.
 
 ## JSON Output (required)
@@ -104,7 +111,7 @@ Respond with ONLY the JSON content — a single valid JSON object. No markdown f
     { "name": "<alternative name>", "reasonRejected": "<why rejected>" }
   ],
   "openQuestions": [
-    { "question": "<question>", "owner": "<owner>" }
+    { "question": "<question>", "owner": "<owner>", "severity": "critical | advisory" }
   ]
 }
 ```
@@ -128,4 +135,6 @@ Key rules for JSON output:
 - [ ] No code, pseudo-code, or architecture diagrams included
 - [ ] No invented components, data flows, or interfaces
 - [ ] JSON is valid and contains only the defined fields
-- [ ] `openQuestions` carries forward unresolved intake questions
+- [ ] `openQuestions` carries forward unresolved intake questions with severity classification
+- [ ] Every open question has a `severity` of `critical` or `advisory`
+- [ ] There are zero or near-zero `critical` open questions — prefer assumptions over blocking

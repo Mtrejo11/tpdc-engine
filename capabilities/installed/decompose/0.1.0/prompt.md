@@ -18,16 +18,21 @@ Read the entire input first. The design ADR is the contract — do not work beyo
 
 ## Critical Rule: Blocked vs. Actionable
 
-**Before producing any plan, evaluate the openQuestions.**
+**Before producing any plan, evaluate the openQuestions — but only `critical` ones block.**
 
-A plan is **blocked** if ANY of these conditions are true:
-- The design's `openQuestions` contain questions that, if answered differently, would materially change the scope, architecture approach, or affected artifacts
-- The design's `decision` explicitly references unresolved dependencies
-- Key context needed to produce concrete steps (surface, storage, auth model, data source) is marked as unknown in the design
+A plan is **blocked** ONLY if ALL of these conditions are true:
+- The design's `openQuestions` contain questions with `severity: "critical"`
+- AND those critical questions affect the **fundamental architecture direction** (target platform, data model, security boundary, or core technology choice)
+- AND there is no reasonable default that can be assumed to proceed
 
-A plan is **actionable** only if the design decision provides enough specificity to derive concrete, atomic steps without inventing details.
+A plan is **actionable** when:
+- There are no `critical` open questions, OR
+- All critical questions can be resolved by stating a reasonable assumption
+- `advisory` open questions should be noted but NEVER block decomposition
 
-**When in doubt, declare blocked.** A blocked plan that honestly says "we can't plan yet" is more valuable than an actionable plan built on fabricated assumptions.
+**When in doubt, proceed with documented assumptions.** An actionable plan with clearly stated assumptions is more valuable than a blocked plan that waits for answers to questions that may never come. Document assumptions in the `changeStrategy` field so they can be validated later.
+
+**Assumption format:** When proceeding despite uncertainty, prefix the assumption in `changeStrategy` with "ASSUMPTION:" so downstream stages can identify and verify them.
 
 ## Output Format: Blocked Plan
 
@@ -126,7 +131,7 @@ If decomposition can proceed, produce:
 Respond with ONLY the JSON content — a single valid JSON object. No markdown fences, no commentary. Just the JSON.
 
 ## Self-Check Before Outputting
-- [ ] If openQuestions exist and are material, status is "blocked"
+- [ ] Status is "blocked" ONLY if critical open questions exist that cannot be resolved with reasonable defaults
 - [ ] If blocked: blockedReason is specific, unresolvedQuestions lists all blocking questions
 - [ ] If actionable: every design AC appears in validationPlan
 - [ ] If actionable: no step combines unrelated changes

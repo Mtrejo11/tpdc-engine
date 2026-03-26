@@ -401,8 +401,24 @@ function determineReadiness(
     };
   }
 
-  // Needs input: critical questions remain
-  if (criticalQuestions.length > 0) {
+  // Check if the design explicitly marked questions with severity.
+  // If the design has severity classifications, prefer those over regex-based heuristics.
+  const design = loadArtifact(run.workflowId, "design") as Record<string, unknown> | null;
+  const designQuestions = (design?.openQuestions as Array<{ question: string; owner: string; severity?: string }>) || [];
+  const designCritical = designQuestions.filter((q) => q.severity === "critical");
+
+  if (designCritical.length > 0) {
+    // Use design's own severity classification — more reliable than regex
+    const plural = designCritical.length === 1 ? "" : "s";
+    return {
+      readiness: "needs_input",
+      readinessReason: `${designCritical.length} critical question${plural} must be resolved before execution: ${designCritical.map((q) => q.question.substring(0, 60)).join("; ")}.`,
+    };
+  }
+
+  // Fallback: if design didn't classify severity, use regex-based classification
+  // but require at least 2 critical questions to block (single matches may be false positives)
+  if (criticalQuestions.length >= 2 && designQuestions.length === 0) {
     const plural = criticalQuestions.length === 1 ? "" : "s";
     return {
       readiness: "needs_input",
@@ -421,11 +437,12 @@ function determineReadiness(
     };
   }
 
-  // Only informational questions remain → ready
-  if (informationalQuestions.length > 0) {
+  // Questions exist but none are critical → ready with notes
+  const totalQuestions = criticalQuestions.length + informationalQuestions.length;
+  if (totalQuestions > 0) {
     return {
       readiness: "ready_for_execution",
-      readinessReason: `Ready to execute. ${informationalQuestions.length} informational question(s) remain but are not blocking.`,
+      readinessReason: `Ready to execute. ${totalQuestions} question(s) remain but can be resolved with reasonable defaults during planning.`,
     };
   }
 

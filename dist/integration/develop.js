@@ -316,6 +316,25 @@ function renderDevelopResult(artifact) {
                 wrapText(blockedStep.blockReason, 64).forEach((l) => lines.push(`  ${l}`));
             }
             lines.push("");
+            // Show open questions and resume hint
+            const lastRunId = artifact.runIds[artifact.runIds.length - 1];
+            if (lastRunId) {
+                const openQuestions = extractOpenQuestions(lastRunId);
+                if (openQuestions.length > 0) {
+                    lines.push(`  Open Questions (${openQuestions.length})`);
+                    lines.push(`  ${"─".repeat(52)}`);
+                    for (let i = 0; i < openQuestions.length; i++) {
+                        const q = openQuestions[i];
+                        const sevLabel = q.severity ? ` [${q.severity}]` : "";
+                        lines.push(`  ${i + 1}. ${q.question}${sevLabel}`);
+                        lines.push(`     Owner: ${q.owner}`);
+                    }
+                    lines.push("");
+                    lines.push("  To resume, use tpdc_resume with the run ID and");
+                    lines.push("  answers to the open questions above.");
+                    lines.push("");
+                }
+            }
         }
     }
     // Run IDs
@@ -337,6 +356,29 @@ function stepIcon(status) {
         case "skipped": return "·";
         case "declined": return "⊘";
     }
+}
+function extractOpenQuestions(runId) {
+    const questions = [];
+    // Check design artifact for open questions
+    const design = (0, local_1.loadArtifact)(runId, "design");
+    if (design?.openQuestions) {
+        const dq = design.openQuestions;
+        for (const q of dq) {
+            questions.push(q);
+        }
+    }
+    // Check decompose artifact for unresolved questions
+    const decompose = (0, local_1.loadArtifact)(runId, "decompose");
+    if (decompose?.unresolvedQuestions) {
+        const uq = decompose.unresolvedQuestions;
+        for (const q of uq) {
+            // Avoid duplicates
+            if (!questions.some((existing) => existing.question === q.question)) {
+                questions.push(q);
+            }
+        }
+    }
+    return questions;
 }
 function wrapText(text, width) {
     const lines = [];

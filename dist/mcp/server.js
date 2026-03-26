@@ -13,6 +13,8 @@ const types_js_1 = require("@modelcontextprotocol/sdk/types.js");
 const dispatcher_1 = require("../integration/dispatcher");
 const parser_1 = require("../integration/parser");
 const develop_1 = require("../integration/develop");
+const resume_1 = require("../runtime/resume");
+const workflow_1 = require("../runtime/workflow");
 const claude_code_adapter_1 = require("../runtime/claude-code-adapter");
 const claude_adapter_1 = require("../runtime/claude-adapter");
 const types_1 = require("../runtime/types");
@@ -128,6 +130,32 @@ const TOOLS = [
                 run_id: { type: "string", description: "Workflow run ID" },
             },
             required: ["run_id"],
+        },
+    },
+    {
+        name: "tpdc_resume",
+        description: "Resume a blocked workflow run by providing answers to the open questions that caused the block. Re-runs the pipeline with the answers injected as resolved context.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                run_id: { type: "string", description: "The blocked workflow run ID to resume" },
+                answers: {
+                    type: "array",
+                    description: "Answers to the open questions that blocked the workflow",
+                    items: {
+                        type: "object",
+                        properties: {
+                            question: { type: "string", description: "The question text (or substring) to match" },
+                            answer: { type: "string", description: "The answer to the question" },
+                        },
+                        required: ["question", "answer"],
+                    },
+                },
+                repo_root: { type: "string", description: "Path to the target repository (for mutation mode)" },
+                apply: { type: "boolean", description: "Whether to apply patches" },
+                confirm_apply: { type: "boolean", description: "Auto-confirm apply" },
+            },
+            required: ["run_id", "answers"],
         },
     },
 ];
@@ -249,6 +277,38 @@ async function handleTool(name, args) {
         case "tpdc_diff": {
             const result = await (0, dispatcher_1.dispatch)({ command: "diff", args: args.run_id, flags: {} }, { llm, quiet: true });
             return result.output;
+        }
+        case "tpdc_resume": {
+            const runId = args.run_id;
+            const answers = args.answers;
+            const repoRoot = await resolveRepoRoot(args.repo_root);
+            const result = await withProgress(`resume ${runId}`, () => (0, resume_1.resumeWorkflow)({
+                runId,
+                answers,
+                llm,
+                quiet: false,
+                apply: args.apply,
+                confirmApply: args.confirm_apply,
+                repoRoot,
+            }));
+            const lines = [];
+            lines.push(`Resumed from blocked run: ${result.originalRunId}`);
+            lines.push(`New run: ${result.newRunId}`);
+            if (result.resolvedQuestions.length > 0) {
+                lines.push(`\nResolved ${result.resolvedQuestions.length} question(s):`);
+                for (const q of result.resolvedQuestions) {
+                    lines.push(`  - ${q.substring(0, 80)}`);
+                }
+            }
+            if (result.remainingQuestions.length > 0) {
+                lines.push(`\n${result.remainingQuestions.length} question(s) still unresolved (proceeded with defaults):`);
+                for (const q of result.remainingQuestions) {
+                    lines.push(`  - ${q.substring(0, 80)}`);
+                }
+            }
+            lines.push("");
+            lines.push((0, workflow_1.renderWorkflowSummary)(result.workflowResult));
+            return lines.join("\n");
         }
         default:
             return `Unknown tool: ${name}`;
