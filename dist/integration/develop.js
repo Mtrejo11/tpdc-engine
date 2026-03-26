@@ -331,7 +331,7 @@ function renderDevelopResult(artifact) {
                         lines.push(`     Owner: ${q.owner}`);
                     }
                     lines.push("");
-                    lines.push("  To resume, use tpdc_resume with the run ID and");
+                    lines.push("  To unblock, use tpdc_unblock with the run ID and");
                     lines.push("  answers to the open questions above.");
                     lines.push("");
                 }

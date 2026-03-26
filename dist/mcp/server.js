@@ -133,7 +133,7 @@ const TOOLS = [
         },
     },
     {
-        name: "tpdc_resume",
+        name: "tpdc_unblock",
         description: "Resume a blocked workflow run by providing answers to the open questions that caused the block. Re-runs the pipeline with the answers injected as resolved context.",
         inputSchema: {
             type: "object",
@@ -278,7 +278,7 @@ async function handleTool(name, args) {
             const result = await (0, dispatcher_1.dispatch)({ command: "diff", args: args.run_id, flags: {} }, { llm, quiet: true });
             return result.output;
         }
-        case "tpdc_resume": {
+        case "tpdc_unblock": {
             const runId = args.run_id;
             const answers = args.answers;
             const repoRoot = await resolveRepoRoot(args.repo_root);
