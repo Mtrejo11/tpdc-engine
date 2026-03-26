@@ -26,5 +26,9 @@ export function saveRawOutput(runId: string, capabilityId: string, raw: string):
 export function loadArtifact(runId: string, capabilityId: string): unknown | null {
   const filePath = path.join(ARTIFACTS_DIR, runId, `${capabilityId}.json`);
   if (!fs.existsSync(filePath)) return null;
-  return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  } catch {
+    return null;
+  }
 }

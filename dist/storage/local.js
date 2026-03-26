@@ -57,6 +57,11 @@ function loadArtifact(runId, capabilityId) {
     const filePath = path.join(ARTIFACTS_DIR, runId, `${capabilityId}.json`);
     if (!fs.existsSync(filePath))
         return null;
-    return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    try {
+        return JSON.parse(fs.readFileSync(filePath, "utf-8"));
+    }
+    catch {
+        return null;
+    }
 }
 //# sourceMappingURL=local.js.map

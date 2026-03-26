@@ -39,6 +39,13 @@ const fs = __importStar(require("fs"));
 const path = __importStar(require("path"));
 const protocols_1 = require("../protocols");
 const INSTALLED_DIR = path.resolve(__dirname, "../../capabilities/installed");
+// Allowlist for capability IDs and version strings — prevents path traversal
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
+function assertSafePathSegment(segment, label) {
+    if (!SAFE_ID_PATTERN.test(segment)) {
+        throw new Error(`Invalid ${label}: "${segment}" — only alphanumeric, dot, dash, and underscore allowed`);
+    }
+}
 function listInstalledCapabilities() {
     if (!fs.existsSync(INSTALLED_DIR))
         return [];
@@ -67,19 +74,25 @@ function listInstalledCapabilities() {
 function loadCapability(id, version) {
     if (!fs.existsSync(INSTALLED_DIR))
         return null;
+    assertSafePathSegment(id, "capability ID");
     const capDir = path.join(INSTALLED_DIR, id);
+    if (!capDir.startsWith(INSTALLED_DIR + path.sep))
+        return null;
     if (!fs.existsSync(capDir))
         return null;
     let targetVersion = version;
     if (!targetVersion) {
-        // Use latest version (sort semver-ish)
+        // Use latest version (proper semver sort)
         const versions = fs.readdirSync(capDir).filter(v => {
             const vPath = path.join(capDir, v);
             return fs.statSync(vPath).isDirectory();
         });
         if (versions.length === 0)
             return null;
-        targetVersion = versions.sort().pop();
+        targetVersion = versions.sort(compareSemver).pop();
+    }
+    else {
+        assertSafePathSegment(targetVersion, "capability version");
     }
     const verDir = path.join(capDir, targetVersion);
     if (!fs.existsSync(verDir))
@@ -101,5 +114,14 @@ function loadCapability(id, version) {
         ? JSON.parse(fs.readFileSync(outputSchemaPath, "utf-8"))
         : {};
     return { definition, prompt, inputSchema, outputSchema, basePath: verDir };
+}
+function compareSemver(a, b) {
+    const pa = a.split(".").map(Number);
+    const pb = b.split(".").map(Number);
+    for (let i = 0; i < 3; i++) {
+        if ((pa[i] ?? 0) !== (pb[i] ?? 0))
+            return (pa[i] ?? 0) - (pb[i] ?? 0);
+    }
+    return 0;
 }
 //# sourceMappingURL=loader.js.map

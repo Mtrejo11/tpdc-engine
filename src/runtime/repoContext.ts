@@ -49,9 +49,13 @@ export function buildRepoContext(
   const fileContents: Record<string, string> = {};
 
   for (const candidate of candidatePaths) {
-    const absPath = path.isAbsolute(candidate)
-      ? candidate
-      : path.join(repoRoot, candidate);
+    // Always resolve relative to repoRoot — never trust absolute paths from LLM output
+    const absPath = path.resolve(repoRoot, candidate);
+
+    // Ensure resolved path stays within repoRoot (prevents traversal via ../ or absolute paths)
+    if (!absPath.startsWith(repoRoot + path.sep) && absPath !== repoRoot) {
+      continue;
+    }
 
     if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) {
       const relPath = path.relative(repoRoot, absPath);

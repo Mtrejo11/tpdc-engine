@@ -95,7 +95,23 @@ async function main() {
       }
 
       const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+
+      // Validate manifest.id and manifest.version to prevent path traversal
+      const SAFE_ID = /^[a-zA-Z0-9._-]+$/;
+      if (!manifest.id || !SAFE_ID.test(manifest.id)) {
+        console.error(`Invalid capability ID: "${manifest.id}" — only alphanumeric, dot, dash, and underscore allowed`);
+        process.exit(1);
+      }
+      if (!manifest.version || !SAFE_ID.test(manifest.version)) {
+        console.error(`Invalid capability version: "${manifest.version}" — only alphanumeric, dot, dash, and underscore allowed`);
+        process.exit(1);
+      }
+
       const targetDir = path.join(INSTALLED_DIR, manifest.id, manifest.version);
+      if (!targetDir.startsWith(INSTALLED_DIR + path.sep)) {
+        console.error("Invalid capability path — escapes installed directory");
+        process.exit(1);
+      }
 
       // Copy all files
       fs.mkdirSync(targetDir, { recursive: true });
