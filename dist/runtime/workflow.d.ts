@@ -53,6 +53,10 @@ export interface WorkflowOptions {
     repoRoot?: string;
     /** Additional file hints for repo context */
     fileHints?: string[];
+    /** Per-stage model overrides. Key is capabilityId, value is model name. */
+    stageModels?: Record<string, string>;
+    /** Per-stage timeout overrides in ms. Key is capabilityId, value is timeout. */
+    stageTimeouts?: Record<string, number>;
 }
 export declare function runWorkflow(request: unknown, options: WorkflowOptions): Promise<WorkflowResult>;
 export declare function renderWorkflowSummary(result: WorkflowResult): string;

@@ -17,6 +17,7 @@ const resume_1 = require("../runtime/resume");
 const workflow_1 = require("../runtime/workflow");
 const claude_code_adapter_1 = require("../runtime/claude-code-adapter");
 const claude_adapter_1 = require("../runtime/claude-adapter");
+const agent_sdk_adapter_1 = require("../runtime/agent-sdk-adapter");
 const types_1 = require("../runtime/types");
 // ── Tool definitions ─────────────────────────────────────────────────
 const TOOLS = [
@@ -165,6 +166,8 @@ function createAdapter() {
     const model = process.env.TPDC_MODEL || undefined;
     if (adapterEnv === "mock")
         return new types_1.MockLLMAdapter();
+    if (adapterEnv === "sdk")
+        return new agent_sdk_adapter_1.AgentSdkAdapter({ model });
     if (adapterEnv === "api" || process.env.ANTHROPIC_API_KEY)
         return new claude_adapter_1.ClaudeAdapter({ model });
     return new claude_code_adapter_1.ClaudeCodeAdapter({ model });

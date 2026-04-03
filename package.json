@@ -49,6 +49,7 @@
     "test:integration": "npx tsx scripts/test-integration.ts",
     "test:develop": "npx tsx scripts/test-develop.ts",
     "test:mcp-plugin": "npx tsx scripts/test-mcp-plugin.ts",
+    "test:agent-sdk": "npx tsx scripts/test-agent-sdk-adapter.ts",
     "test:e2e": "npx ts-node scripts/test-e2e-mutation.ts",
     "test:validate:mutation": "npx ts-node scripts/test-validate-mutation.ts"
   },

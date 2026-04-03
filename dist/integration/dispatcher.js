@@ -69,10 +69,41 @@ const refactorRenderer_1 = require("../plugin/renderers/refactorRenderer");
 const planRenderer_1 = require("../plugin/renderers/planRenderer");
 const workflow_2 = require("../runtime/workflow");
 const ARTIFACTS_DIR = path.resolve(__dirname, "../../artifacts");
+/** Parse TPDC_STAGE_MODELS env var: "intake:haiku,design:sonnet,execute-patch:opus" */
+function parseStageModelsEnv() {
+    const raw = process.env.TPDC_STAGE_MODELS;
+    if (!raw)
+        return undefined;
+    const models = {};
+    for (const pair of raw.split(",")) {
+        const [stage, model] = pair.trim().split(":");
+        if (stage && model)
+            models[stage.trim()] = model.trim();
+    }
+    return Object.keys(models).length > 0 ? models : undefined;
+}
+/** Parse TPDC_STAGE_TIMEOUTS env var: "execute-patch:600000,design:120000" */
+function parseStageTimeoutsEnv() {
+    const raw = process.env.TPDC_STAGE_TIMEOUTS;
+    if (!raw)
+        return undefined;
+    const timeouts = {};
+    for (const pair of raw.split(",")) {
+        const [stage, ms] = pair.trim().split(":");
+        if (stage && ms) {
+            const val = parseInt(ms.trim(), 10);
+            if (!isNaN(val))
+                timeouts[stage.trim()] = val;
+        }
+    }
+    return Object.keys(timeouts).length > 0 ? timeouts : undefined;
+}
 // ── Dispatcher ───────────────────────────────────────────────────────
 async function dispatch(invocation, options) {
     const { command, args, flags } = invocation;
     const { llm, quiet } = options;
+    const stageModels = parseStageModelsEnv();
+    const stageTimeouts = parseStageTimeoutsEnv();
     switch (command) {
         // ── Orchestrator commands ──
         case "develop": {
@@ -121,6 +152,7 @@ async function dispatch(invocation, options) {
                 confirmApply: flags.confirmApply,
                 interactive: flags.interactive,
                 repoRoot: flags.repoRoot,
+                stageModels, stageTimeouts,
                 normalize: (text) => (0, learning_1.injectLessons)(text, "solve"),
                 render: (run) => (0, workflow_2.renderWorkflowSummary)(run),
                 postProcess: (run) => learnAndSave(run, "solve"),
@@ -132,6 +164,7 @@ async function dispatch(invocation, options) {
                 confirmApply: flags.confirmApply,
                 interactive: flags.interactive,
                 repoRoot: flags.repoRoot,
+                stageModels, stageTimeouts,
                 normalize: (text) => {
                     const bugCtx = (0, bugNormalizer_1.normalizeBugReport)(text);
                     return (0, learning_1.injectLessons)(bugCtx.normalizedRequest, "fix");
@@ -149,6 +182,7 @@ async function dispatch(invocation, options) {
                 confirmApply: flags.confirmApply,
                 interactive: flags.interactive,
                 repoRoot: flags.repoRoot,
+                stageModels, stageTimeouts,
                 normalize: (text) => {
                     const ctx = (0, refactorNormalizer_1.normalizeRefactor)(text);
                     return (0, learning_1.injectLessons)(ctx.normalizedRequest, "refactor");
@@ -300,6 +334,8 @@ async function handleWorkflow(command, args, options) {
         confirmApply: options.confirmApply,
         interactive: options.interactive,
         repoRoot: options.repoRoot ? path.resolve(options.repoRoot) : undefined,
+        stageModels: options.stageModels,
+        stageTimeouts: options.stageTimeouts,
     });
     const run = (0, runs_1.loadRun)(result.workflowId);
     if (!run) {

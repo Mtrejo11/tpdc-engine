@@ -14,6 +14,7 @@ import { dispatch, DispatchResult, DispatchOptions } from "./dispatcher";
 import { LLMAdapter } from "../runtime/types";
 import { ClaudeCodeAdapter } from "../runtime/claude-code-adapter";
 import { ClaudeAdapter } from "../runtime/claude-adapter";
+import { AgentSdkAdapter } from "../runtime/agent-sdk-adapter";
 import { MockLLMAdapter } from "../runtime/types";
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -157,6 +158,10 @@ function createDefaultAdapter(): LLMAdapter {
 
   if (adapterEnv === "mock") {
     return new MockLLMAdapter();
+  }
+
+  if (adapterEnv === "sdk") {
+    return new AgentSdkAdapter({ model });
   }
 
   if (adapterEnv === "api" || process.env.ANTHROPIC_API_KEY) {

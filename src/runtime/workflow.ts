@@ -7,6 +7,9 @@ import { dryRunValidate, PatchInput } from "../patch/dryRun";
 import { defaultSafetyConfig } from "../patch/safetyChecks";
 import { gitApplyPatches, GitApplyResult } from "../patch/gitIntegration";
 import { confirmWithPreview, ConfirmationResult } from "../patch/confirmationPreview";
+import { ClaudeAdapter } from "./claude-adapter";
+import { ClaudeCodeAdapter } from "./claude-code-adapter";
+import { AgentSdkAdapter } from "./agent-sdk-adapter";
 
 // ── Pipeline definitions ─────────────────────────────────────────────
 
@@ -88,6 +91,51 @@ export interface WorkflowOptions {
   repoRoot?: string;
   /** Additional file hints for repo context */
   fileHints?: string[];
+  /** Per-stage model overrides. Key is capabilityId, value is model name. */
+  stageModels?: Record<string, string>;
+  /** Per-stage timeout overrides in ms. Key is capabilityId, value is timeout. */
+  stageTimeouts?: Record<string, number>;
+}
+
+/** Default stage timeouts (ms) for stages that need more than the adapter default */
+const DEFAULT_STAGE_TIMEOUTS: Record<string, number> = {
+  "execute-patch": 600_000,  // 10 min — repo-aware patch generation
+};
+
+/**
+ * Create a stage-specific adapter with model and/or timeout overrides.
+ * Returns the base adapter if no overrides apply to this stage.
+ */
+function resolveStageAdapter(
+  baseAdapter: LLMAdapter,
+  stageId: string,
+  stageModels?: Record<string, string>,
+  stageTimeouts?: Record<string, number>,
+): LLMAdapter {
+  const model = stageModels?.[stageId];
+  const timeout = stageTimeouts?.[stageId] ?? DEFAULT_STAGE_TIMEOUTS[stageId];
+  const needsModel = model && model !== baseAdapter.modelId;
+  const needsTimeout = timeout && baseAdapter.adapterInfo.transport === "cli";
+
+  if (!needsModel && !needsTimeout) return baseAdapter;
+
+  const effectiveModel = model ?? baseAdapter.modelId;
+
+  // Clone adapter with overrides
+  if (baseAdapter.adapterInfo.adapterId === "claude-code-cli") {
+    return new ClaudeCodeAdapter({
+      model: effectiveModel,
+      timeoutMs: timeout,
+    });
+  }
+  if (baseAdapter.adapterInfo.adapterId === "agent-sdk") {
+    return new AgentSdkAdapter({ model: effectiveModel });
+  }
+  if (baseAdapter.adapterInfo.adapterId === "claude-api") {
+    return new ClaudeAdapter({ model: effectiveModel });
+  }
+
+  return baseAdapter;
 }
 
 // ── Orchestrator ─────────────────────────────────────────────────────
@@ -97,7 +145,7 @@ export async function runWorkflow(
   options: WorkflowOptions,
 ): Promise<WorkflowResult> {
   const workflowId = `wf_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-  const { llm, quiet, apply, confirmApply, interactive, repoRoot, fileHints } = options;
+  const { llm, quiet, apply, confirmApply, interactive, repoRoot, fileHints, stageModels, stageTimeouts } = options;
   const log = quiet ? (() => {}) : console.log.bind(console);
   const mutationMode = !!apply;
 
@@ -136,6 +184,9 @@ export async function runWorkflow(
   log(`[Workflow] Mode: ${modeLabel}`);
   log(`[Workflow] Adapter: ${llm.adapterInfo.adapterId} (${llm.adapterInfo.transport})`);
   log(`[Workflow] Model: ${llm.adapterInfo.modelId}`);
+  if (stageModels && Object.keys(stageModels).length > 0) {
+    log(`[Workflow] Stage models: ${Object.entries(stageModels).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+  }
   log(`[Workflow] Pipeline: ${pipeline.map((s) => s.capabilityId).join(" → ")}\n`);
 
   if (mutationMode && !repoRoot) {
@@ -194,8 +245,9 @@ export async function runWorkflow(
 
       try {
         const planInput = currentInput as Record<string, unknown>;
+        const stageLlm = resolveStageAdapter(llm, stage.capabilityId, stageModels, stageTimeouts);
         const result = await executePatch(planInput, {
-          llm,
+          llm: stageLlm,
           repoRoot,
           fileHints,
           runId: workflowId,
@@ -558,11 +610,13 @@ export async function runWorkflow(
       };
     }
 
-    log(`  ${stage.capabilityId.padEnd(16)} running...`);
+    const stageLlm = resolveStageAdapter(llm, stage.capabilityId, stageModels, stageTimeouts);
+    const stageModelLabel = stageLlm.modelId !== llm.modelId ? ` [${stageLlm.modelId}]` : "";
+    log(`  ${stage.capabilityId.padEnd(16)} running...${stageModelLabel}`);
 
     try {
       const result = await runCapability(stage.capabilityId, currentInput, {
-        llm,
+        llm: stageLlm,
         runId: workflowId,
         quiet: true,
       });

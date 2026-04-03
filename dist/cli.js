@@ -41,6 +41,7 @@ const runCapability_1 = require("./runtime/runCapability");
 const workflow_1 = require("./runtime/workflow");
 const claude_adapter_1 = require("./runtime/claude-adapter");
 const claude_code_adapter_1 = require("./runtime/claude-code-adapter");
+const agent_sdk_adapter_1 = require("./runtime/agent-sdk-adapter");
 const types_1 = require("./runtime/types");
 const runs_1 = require("./storage/runs");
 const showRenderer_1 = require("./plugin/renderers/showRenderer");
@@ -88,6 +89,10 @@ function createAdapter() {
         console.log("[Engine] Using MockLLMAdapter (TPDC_ADAPTER=mock)");
         return new types_1.MockLLMAdapter();
     }
+    if (adapterEnv === "sdk") {
+        console.log(`[Engine] Using AgentSdkAdapter (SDK)${model ? ` (${model})` : ""}`);
+        return new agent_sdk_adapter_1.AgentSdkAdapter({ model });
+    }
     if (adapterEnv === "api" || process.env.ANTHROPIC_API_KEY) {
         console.log(`[Engine] Using ClaudeAdapter (API)${model ? ` (${model})` : ""}`);
         return new claude_adapter_1.ClaudeAdapter({ model });
@@ -96,8 +101,45 @@ function createAdapter() {
     console.log(`[Engine] Using ClaudeCodeAdapter (CLI)${model ? ` (${model})` : ""}`);
     return new claude_code_adapter_1.ClaudeCodeAdapter({ model });
 }
+/**
+ * Parse TPDC_STAGE_MODELS env var into a Record<string, string>.
+ * Format: "intake:haiku,design:sonnet,execute-patch:opus"
+ */
+function parseStageModels() {
+    const raw = process.env.TPDC_STAGE_MODELS;
+    if (!raw)
+        return undefined;
+    const models = {};
+    for (const pair of raw.split(",")) {
+        const [stage, model] = pair.trim().split(":");
+        if (stage && model)
+            models[stage.trim()] = model.trim();
+    }
+    return Object.keys(models).length > 0 ? models : undefined;
+}
+/**
+ * Parse TPDC_STAGE_TIMEOUTS env var into a Record<string, number>.
+ * Format: "execute-patch:600000,design:120000"
+ */
+function parseStageTimeouts() {
+    const raw = process.env.TPDC_STAGE_TIMEOUTS;
+    if (!raw)
+        return undefined;
+    const timeouts = {};
+    for (const pair of raw.split(",")) {
+        const [stage, ms] = pair.trim().split(":");
+        if (stage && ms) {
+            const val = parseInt(ms.trim(), 10);
+            if (!isNaN(val))
+                timeouts[stage.trim()] = val;
+        }
+    }
+    return Object.keys(timeouts).length > 0 ? timeouts : undefined;
+}
 async function main() {
     const [command, ...args] = process.argv.slice(2);
+    const stageModels = parseStageModels();
+    const stageTimeouts = parseStageTimeouts();
     switch (command) {
         case "install-capability": {
             const sourcePath = args[0];
@@ -225,6 +267,8 @@ async function main() {
                 confirmApply: confirmApplyFlag,
                 interactive: useInteractive,
                 repoRoot: repoRootValue ? path.resolve(repoRootValue) : undefined,
+                stageModels,
+                stageTimeouts,
             });
             // Persist summary.md + learnings
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -274,6 +318,8 @@ async function main() {
                 confirmApply: confirmApplyFlag,
                 interactive: useInteractive,
                 repoRoot: repoRootValue ? path.resolve(repoRootValue) : undefined,
+                stageModels,
+                stageTimeouts,
             });
             // Persist summary.md + learnings
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -332,6 +378,8 @@ async function main() {
                 confirmApply: confirmApplyFlag,
                 interactive: useInteractive,
                 repoRoot: repoRootValue ? path.resolve(repoRootValue) : undefined,
+                stageModels,
+                stageTimeouts,
             });
             // Build refactor artifact + persist + learn
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -373,6 +421,8 @@ async function main() {
             const result = await (0, workflow_1.runWorkflow)(withLessons(assessCtx.normalizedRequest, "assess"), {
                 llm,
                 quiet: false,
+                stageModels,
+                stageTimeouts,
             });
             // Persist summary.md + learnings
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -414,6 +464,8 @@ async function main() {
             const result = await (0, workflow_1.runWorkflow)(withLessons(planCtx.normalizedRequest, "plan"), {
                 llm,
                 quiet: false,
+                stageModels,
+                stageTimeouts,
             });
             // Build plan artifact from workflow outputs
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -460,6 +512,8 @@ async function main() {
             const result = await (0, workflow_1.runWorkflow)(withLessons(discCtx.normalizedRequest, "discovery"), {
                 llm,
                 quiet: false,
+                stageModels,
+                stageTimeouts,
             });
             // Build discovery artifact from workflow outputs
             const run = (0, runs_1.loadRun)(result.workflowId);
@@ -621,6 +675,8 @@ async function main() {
                 confirmApply: confirmApplyFlag,
                 interactive: useInteractive,
                 repoRoot: repoRootValue ? path.resolve(repoRootValue) : undefined,
+                stageModels,
+                stageTimeouts,
             });
             // Persist summary.md + learnings
             const run = (0, runs_1.loadRun)(result.workflowId);

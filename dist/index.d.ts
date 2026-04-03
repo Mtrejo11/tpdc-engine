@@ -6,6 +6,7 @@ export { runSingleCapability } from "./orchestrator/pipeline";
 export { LLMAdapter, MockLLMAdapter } from "./runtime/types";
 export { ClaudeAdapter } from "./runtime/claude-adapter";
 export { ClaudeCodeAdapter } from "./runtime/claude-code-adapter";
+export { AgentSdkAdapter } from "./runtime/agent-sdk-adapter";
 export { executePatch } from "./runtime/executePatch";
 export { buildRepoContext, formatRepoContext } from "./runtime/repoContext";
 export type { RepoContext } from "./runtime/repoContext";

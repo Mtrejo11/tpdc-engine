@@ -20,6 +20,7 @@ import { resumeWorkflow, ResumeAnswer } from "../runtime/resume";
 import { renderWorkflowSummary } from "../runtime/workflow";
 import { ClaudeCodeAdapter } from "../runtime/claude-code-adapter";
 import { ClaudeAdapter } from "../runtime/claude-adapter";
+import { AgentSdkAdapter } from "../runtime/agent-sdk-adapter";
 import { MockLLMAdapter, LLMAdapter } from "../runtime/types";
 
 // ── Tool definitions ─────────────────────────────────────────────────
@@ -172,6 +173,7 @@ function createAdapter(): LLMAdapter {
   const model = process.env.TPDC_MODEL || undefined;
 
   if (adapterEnv === "mock") return new MockLLMAdapter();
+  if (adapterEnv === "sdk") return new AgentSdkAdapter({ model });
   if (adapterEnv === "api" || process.env.ANTHROPIC_API_KEY) return new ClaudeAdapter({ model });
   return new ClaudeCodeAdapter({ model });
 }

@@ -56,6 +56,33 @@ export interface DispatchOptions {
 
 const ARTIFACTS_DIR = path.resolve(__dirname, "../../artifacts");
 
+/** Parse TPDC_STAGE_MODELS env var: "intake:haiku,design:sonnet,execute-patch:opus" */
+function parseStageModelsEnv(): Record<string, string> | undefined {
+  const raw = process.env.TPDC_STAGE_MODELS;
+  if (!raw) return undefined;
+  const models: Record<string, string> = {};
+  for (const pair of raw.split(",")) {
+    const [stage, model] = pair.trim().split(":");
+    if (stage && model) models[stage.trim()] = model.trim();
+  }
+  return Object.keys(models).length > 0 ? models : undefined;
+}
+
+/** Parse TPDC_STAGE_TIMEOUTS env var: "execute-patch:600000,design:120000" */
+function parseStageTimeoutsEnv(): Record<string, number> | undefined {
+  const raw = process.env.TPDC_STAGE_TIMEOUTS;
+  if (!raw) return undefined;
+  const timeouts: Record<string, number> = {};
+  for (const pair of raw.split(",")) {
+    const [stage, ms] = pair.trim().split(":");
+    if (stage && ms) {
+      const val = parseInt(ms.trim(), 10);
+      if (!isNaN(val)) timeouts[stage.trim()] = val;
+    }
+  }
+  return Object.keys(timeouts).length > 0 ? timeouts : undefined;
+}
+
 // ── Dispatcher ───────────────────────────────────────────────────────
 
 export async function dispatch(
@@ -64,6 +91,8 @@ export async function dispatch(
 ): Promise<DispatchResult> {
   const { command, args, flags } = invocation;
   const { llm, quiet } = options;
+  const stageModels = parseStageModelsEnv();
+  const stageTimeouts = parseStageTimeoutsEnv();
 
   switch (command) {
     // ── Orchestrator commands ──
@@ -121,6 +150,7 @@ export async function dispatch(
         confirmApply: flags.confirmApply,
         interactive: flags.interactive,
         repoRoot: flags.repoRoot,
+        stageModels, stageTimeouts,
         normalize: (text) => injectLessons(text, "solve"),
         render: (run) => renderWorkflowSummary(run as unknown as WorkflowResult),
         postProcess: (run) => learnAndSave(run, "solve"),
@@ -133,6 +163,7 @@ export async function dispatch(
         confirmApply: flags.confirmApply,
         interactive: flags.interactive,
         repoRoot: flags.repoRoot,
+        stageModels, stageTimeouts,
         normalize: (text) => {
           const bugCtx = normalizeBugReport(text);
           return injectLessons(bugCtx.normalizedRequest, "fix");
@@ -151,6 +182,7 @@ export async function dispatch(
         confirmApply: flags.confirmApply,
         interactive: flags.interactive,
         repoRoot: flags.repoRoot,
+        stageModels, stageTimeouts,
         normalize: (text) => {
           const ctx = normalizeRefactor(text);
           return injectLessons(ctx.normalizedRequest, "refactor");
@@ -301,6 +333,8 @@ interface WorkflowHandlerOptions {
   confirmApply?: boolean;
   interactive?: boolean;
   repoRoot?: string;
+  stageModels?: Record<string, string>;
+  stageTimeouts?: Record<string, number>;
   normalize: (text: string) => string;
   render: (run: RunSummary) => string;
   postProcess: (run: RunSummary) => void;
@@ -336,6 +370,8 @@ async function handleWorkflow(
     confirmApply: options.confirmApply,
     interactive: options.interactive,
     repoRoot: options.repoRoot ? path.resolve(options.repoRoot) : undefined,
+    stageModels: options.stageModels,
+    stageTimeouts: options.stageTimeouts,
   });
 
   const run = loadRun(result.workflowId);
