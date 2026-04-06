@@ -94,14 +94,16 @@ function renderBugResult(run, bugCtx) {
         lines.push("  Root-Cause Analysis");
         lines.push(`  ${"─".repeat(50)}`);
         if (design.context) {
-            const ctx = design.context;
-            wrapText(ctx, 66).forEach((l) => lines.push(`  ${l}`));
+            const context = design.context;
+            const contextItems = Array.isArray(context) ? context : [context];
+            for (const item of contextItems) {
+                wrapText(String(item), 66).forEach((l) => lines.push(`  ${l}`));
+            }
         }
         if (design.decision) {
             lines.push("");
             lines.push("  Proposed fix:");
-            const decision = design.decision;
-            wrapText(decision, 66).forEach((l) => lines.push(`  ${l}`));
+            wrapText(String(design.decision), 66).forEach((l) => lines.push(`  ${l}`));
         }
         lines.push("");
     }

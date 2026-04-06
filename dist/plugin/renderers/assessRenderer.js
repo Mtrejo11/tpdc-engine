@@ -214,7 +214,7 @@ function extractActions(design, run) {
     const actions = [];
     // From design decision
     if (design?.decision) {
-        const decision = design.decision;
+        const decision = String(design.decision);
         // Split on "because" to get the action part
         const actionPart = decision.split(" — because")[0].split(" — ")[0];
         if (actionPart.length > 20) {
