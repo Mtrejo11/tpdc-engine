@@ -19,6 +19,11 @@ export interface ExecuteRequest {
   model?: string;
   /** Cap on agent loop turns. Default 30. */
   maxTurns?: number;
+  /**
+   * Override commit message used when the workflow commits the agent's
+   * final state. If omitted, derived from `intakeTitle + runId`.
+   */
+  commitMessage?: string;
 }
 
 export type ExecuteStatus =
@@ -34,6 +39,14 @@ export interface ExecuteResult {
   worktreePath: string;
   branch: string;
   baseSha: string;
+  /**
+   * SHA of the commit created by the workflow over the agent's final state.
+   * Undefined when status=no_changes or when no commit was made (e.g., the
+   * agent committed everything itself and there was nothing left to add).
+   */
+  commitSha?: string;
+  /** Commit message used. Only set when commitSha is set. */
+  commitMessage?: string;
   filesChanged: string[];
   diff: string;
   /** The model's last text response — typically a summary of what was done. */

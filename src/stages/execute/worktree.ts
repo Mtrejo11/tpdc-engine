@@ -119,6 +119,52 @@ export async function listChangedFiles(handle: WorktreeHandle): Promise<string[]
   return stdout.split("\n").filter((line) => line.length > 0);
 }
 
+export interface CommitChangesResult {
+  /** True if a commit was created. False if nothing was staged to commit. */
+  committed: boolean;
+  /** SHA of the new commit. Undefined when committed=false. */
+  sha?: string;
+}
+
+/**
+ * Commit all changes in the worktree (staged + previously-untracked) under
+ * the provided message. Idempotent against agent-side commits: if the agent
+ * already committed everything during execute, this returns
+ * `{ committed: false }` instead of erroring on "nothing to commit".
+ *
+ * Why this exists: stage 5 (push) needs the branch to have commits beyond
+ * the base SHA so that `gh pr create` doesn't reject with
+ * "No commits between <base> and <branch>". Stage 3 (execute) writes files
+ * to the worktree but doesn't commit them by default — this helper closes
+ * that gap.
+ */
+export async function commitChanges(
+  handle: WorktreeHandle,
+  message: string,
+): Promise<CommitChangesResult> {
+  // Stage anything the agent didn't already stage. Idempotent.
+  await stageAll(handle);
+
+  // If the index is empty (no staged changes), there's nothing to commit.
+  // This happens when the agent itself ran `git commit` during execute, or
+  // when the worktree truly has no changes.
+  const { stdout: cachedDiff } = await execFileAsync(
+    "git",
+    ["diff", "--cached", "--name-only"],
+    { cwd: handle.path },
+  );
+  if (cachedDiff.trim().length === 0) {
+    return { committed: false };
+  }
+
+  await execFileAsync("git", ["commit", "-m", message], { cwd: handle.path });
+
+  const { stdout: shaOut } = await execFileAsync("git", ["rev-parse", "HEAD"], {
+    cwd: handle.path,
+  });
+  return { committed: true, sha: shaOut.trim() };
+}
+
 /**
  * Remove the worktree and delete its branch (only if branch is unmerged
  * elsewhere — git refuses to delete a branch with unmerged commits otherwise).

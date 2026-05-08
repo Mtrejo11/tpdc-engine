@@ -59,6 +59,13 @@ they can't be), respond with text only — no more tool calls. Your final
 text response is your summary: what you did, what changed, what (if
 anything) you couldn't do and why.
 
+**You don't need to git commit yourself.**
+The workflow commits your final state automatically with a sensible
+message derived from the intake title. You CAN run \`git commit\` if
+you want to split changes into multiple commits (e.g., one per logical
+step), but it's not required. Don't run \`git push\` — that's the
+push stage's job.
+
 ## What you receive
 
 A JSON-serialized PlanArtifact with title, objective, steps, validation
