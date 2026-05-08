@@ -107,6 +107,18 @@ export const PlanArtifactSchema = z.object({
         "Example: 'Run `npm test src/auth/`; smoke-test login flow manually.'",
     ),
 
+  testCommands: z
+    .array(z.string().min(1))
+    .default([])
+    .describe(
+      "Executable bash commands that validate the plan was correctly applied. " +
+        "Run from the repo root in the post-execute worktree. Each command " +
+        "must exit 0 for the validation to pass. Examples: " +
+        '"npm test src/auth/password-reset/", "pytest tests/billing/", ' +
+        '"npm run lint", "tsc --noEmit". ' +
+        "Leave empty if no programmatic validation is possible (manual smoke only).",
+    ),
+
   assumptions: z
     .array(z.string())
     .default([])

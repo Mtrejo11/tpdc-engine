@@ -12,7 +12,9 @@
  * See DECISIONS.md §D4 for the v2 scope boundary.
  */
 
+import { runExecute } from "../../stages/execute/execute.js";
 import { runPlan } from "../../stages/plan/plan.js";
+import { runTests } from "../../stages/run-tests/run-tests.js";
 import { inngest } from "../client.js";
 import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
 
@@ -108,16 +110,91 @@ export const shipFeature = inngest.createFunction(
       };
     }
 
-    // TODO: execute (worktree), run-tests, push, open-PR
+    // ── Stage 3: Execute (agentic, worktree-isolated) ────────────────
+    // Agent loop with bash + text_editor tools scoped to a fresh worktree.
+    // Produces a diff against the base commit. Does NOT run tests yet
+    // (that's stage 4). Does NOT push or merge (stages 5-6).
+    //
+    // The repoRoot is taken from the triggering event payload. The worktree
+    // lives under <repoRoot>/.tpdc/worktrees/<runId>/.
+    const execute = await step.run("execute", async () => {
+      return await runExecute({
+        runId: event.data.runId,
+        intakeTitle: intake.artifact.title,
+        plan: plan.artifact,
+        repoRoot: event.data.repoRoot,
+      });
+    });
+
+    logger.info("Execute complete", {
+      runId: event.data.runId,
+      status: execute.status,
+      filesChanged: execute.filesChanged.length,
+      turnCount: execute.turnCount,
+      toolCalls: execute.toolCallCount,
+      tokensIn: execute.usage.inputTokens,
+      tokensOut: execute.usage.outputTokens,
+    });
+
+    if (execute.status !== "completed" && execute.status !== "no_changes") {
+      return {
+        status: "blocked" as const,
+        stage: "execute" as const,
+        reason: `execute status: ${execute.status}`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute,
+      };
+    }
+
+    // ── Stage 4: Run tests (validation) ──────────────────────────────
+    // Execute plan.testCommands one by one in the worktree. all_passed is
+    // required to proceed; some_failed/errored/no_commands halt cleanly so
+    // a human (or stage 8's auto-fix-CI loop) can investigate.
+    const tests = await step.run("run-tests", async () => {
+      return await runTests({
+        runId: event.data.runId,
+        worktreePath: execute.worktreePath,
+        commands: plan.artifact.testCommands,
+      });
+    });
+
+    logger.info("Run-tests complete", {
+      runId: event.data.runId,
+      status: tests.status,
+      ...tests.summary,
+      totalDurationMs: tests.totalDurationMs,
+    });
+
+    if (tests.status !== "all_passed") {
+      return {
+        status: tests.status === "no_commands" ? ("blocked" as const) : ("failed" as const),
+        stage: "run-tests" as const,
+        reason:
+          tests.status === "no_commands"
+            ? "plan produced no testCommands; cannot validate programmatically"
+            : `run-tests status: ${tests.status} (${tests.summary.failed} failed, ${tests.summary.errored} errored)`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute,
+        tests,
+      };
+    }
+
+    // TODO: push, open-PR
     // TODO: step.waitForEvent("tpdc/ci.completed", ...)
     // TODO: auto-fix-CI loop (evaluator-optimizer pattern)
 
     return {
       status: "stub" as const,
-      stage: "post-plan" as const,
+      stage: "post-tests" as const,
       runId: event.data.runId,
       intake: intake.artifact,
       plan: plan.artifact,
+      execute,
+      tests,
     };
   },
 );

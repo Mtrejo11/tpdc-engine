@@ -56,6 +56,23 @@ Prefer real commands ("npm test src/auth/", "pytest tests/billing/test_invoice.p
 Manual steps are OK but must be specific ("submit the password reset form
 with a non-existent email — confirm 200 + generic message").
 
+**Populate testCommands with executable bash commands.**
+The validationApproach field is free-form text describing how to validate.
+The testCommands array is the *executable* part — bash commands that the
+run-tests stage will execute one by one. Each must exit 0 for validation
+to pass.
+
+Examples that go in testCommands:
+  - "npm test src/auth/password-reset/"
+  - "pytest tests/billing/ -q"
+  - "npm run lint"
+  - "tsc --noEmit"
+
+Leave testCommands empty ONLY when no programmatic validation is possible
+(rare — the workflow will halt with "no_commands" and the user has to
+intervene manually). Always prefer to surface at least one command, even
+a coarse "npm test" or "make test", over leaving it empty.
+
 **Readiness gates.**
 - ready: you can produce non-empty steps with binary AC and a DAG of dependencies.
 - needs_input: you can draft a plan but a specific blocker requires user input
