@@ -17,6 +17,7 @@ import { runOpenPR } from "../../stages/open-pr/open-pr.js";
 import { runPlan } from "../../stages/plan/plan.js";
 import { runPush } from "../../stages/push/push.js";
 import { inngest } from "../client.js";
+import { resolveCIWithAutoFix } from "./lib/resolve-ci.js";
 import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
 import { resolveTestsWithAutoFix } from "./lib/resolve-tests.js";
 
@@ -266,19 +267,55 @@ export const shipFeature = inngest.createFunction(
       };
     }
 
-    // TODO: step.waitForEvent("tpdc/ci.completed", ...)  — stage 7
-    // TODO: auto-fix-CI loop applied to remote CI failures — extension of stage 8
-
-    return {
-      status: "completed" as const,
-      stage: "pr-opened" as const,
+    // ── Stage 7 + 8 (remote): wait for CI + auto-fix CI failures ─────
+    // Workflow hibernates on tpdc/ci.completed (emitted by the GitHub
+    // webhook receiver). On failure, fetch CI logs, fix-mode execute,
+    // push --force-with-lease, re-wait. Up to 3 retries.
+    const ci = await resolveCIWithAutoFix({
+      step,
       runId: event.data.runId,
       intake: intake.artifact,
       plan: plan.artifact,
-      execute: finalExecute,
+      initialExecute: finalExecute,
+      initialPush: push,
+      repoRoot: event.data.repoRoot,
+    });
+
+    logger.info("CI resolved", {
+      runId: event.data.runId,
+      kind: ci.kind,
+      attempts: ci.attempts,
+      tokensIn: ci.totalUsage.inputTokens,
+      tokensOut: ci.totalUsage.outputTokens,
+    });
+
+    if (ci.kind === "halted") {
+      return {
+        status: "failed" as const,
+        stage: "ci" as const,
+        reason: ci.reason,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute: ci.finalExecute,
+        tests,
+        push,
+        openPR,
+        ci,
+      };
+    }
+
+    return {
+      status: "completed" as const,
+      stage: "ci-green" as const,
+      runId: event.data.runId,
+      intake: intake.artifact,
+      plan: plan.artifact,
+      execute: ci.finalExecute,
       tests,
       push,
       openPR,
+      ci,
     };
   },
 );
