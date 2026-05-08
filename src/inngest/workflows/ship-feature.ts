@@ -13,12 +13,13 @@
  */
 
 import { runExecute } from "../../stages/execute/execute.js";
+import { detectBaseBranch } from "../../stages/open-pr/detect-base-branch.js";
 import { runOpenPR } from "../../stages/open-pr/open-pr.js";
-import { runPlan } from "../../stages/plan/plan.js";
 import { runPush } from "../../stages/push/push.js";
 import { inngest } from "../client.js";
 import { resolveCIWithAutoFix } from "./lib/resolve-ci.js";
 import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
+import { resolvePlanWithUnblock } from "./lib/resolve-plan.js";
 import { resolveTestsWithAutoFix } from "./lib/resolve-tests.js";
 
 export const shipFeature = inngest.createFunction(
@@ -69,39 +70,44 @@ export const shipFeature = inngest.createFunction(
       tokensOut: intake.totalUsage.outputTokens,
     });
 
-    // ── Stage 2: Plan ────────────────────────────────────────────────
-    // Take the intake and produce an ordered, executable plan.
-    const plan = await step.run("plan", async () => {
-      return await runPlan({
-        runId: event.data.runId,
-        intake: intake.artifact,
-      });
+    // ── Stage 2: Plan (with unblock loop) ────────────────────────────
+    // Inside the helper: run plan → if needs_input with blockers, emit
+    // tpdc/plan.unblock_requested, hibernate on tpdc/plan.unblocked, augment
+    // with resolutions and retry. Up to 3 attempts.
+    const plan = await resolvePlanWithUnblock({
+      step,
+      runId: event.data.runId,
+      intake: intake.artifact,
     });
 
-    logger.info("Plan complete", {
+    if (plan.kind === "halted") {
+      logger.info("Plan halted", {
+        runId: event.data.runId,
+        reason: plan.reason,
+        attempts: plan.attempts,
+      });
+      return {
+        status: "blocked" as const,
+        stage: "plan" as const,
+        reason: plan.reason,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.lastArtifact,
+        attempts: plan.attempts,
+        usage: plan.totalUsage,
+      };
+    }
+
+    logger.info("Plan resolved", {
       runId: event.data.runId,
       readiness: plan.artifact.readiness,
       stepCount: plan.artifact.steps.length,
       riskLevel: plan.artifact.riskLevel,
-      blockerCount: plan.artifact.blockers.length,
-      tokensIn: plan.usage.inputTokens,
-      tokensOut: plan.usage.outputTokens,
+      attempts: plan.attempts,
+      tokensIn: plan.totalUsage.inputTokens,
+      tokensOut: plan.totalUsage.outputTokens,
     });
 
-    // Gate: plan must be ready and have steps to proceed.
-    // Plan unblock loop is a future enhancement (blockers have a different
-    // shape than intake openQuestions; design needs care).
-    if (plan.artifact.readiness !== "ready") {
-      return {
-        status: plan.artifact.readiness === "not_ready" ? ("blocked" as const) : ("needs_input" as const),
-        stage: "plan" as const,
-        reason: `plan reported ${plan.artifact.readiness}`,
-        runId: event.data.runId,
-        intake: intake.artifact,
-        plan: plan.artifact,
-        blockers: plan.artifact.blockers,
-      };
-    }
     if (plan.artifact.steps.length === 0) {
       return {
         status: "blocked" as const,
@@ -232,11 +238,17 @@ export const shipFeature = inngest.createFunction(
 
     // ── Stage 6: Open PR via gh CLI ──────────────────────────────────
     // Title from intake.title; body rendered from intake + plan + execute + tests.
+    // Auto-detect the base branch (some repos use master/develop instead of main).
+    const baseBranchInfo = await step.run("detect-base-branch", async () => {
+      return await detectBaseBranch({ repoRoot: event.data.repoRoot });
+    });
+
     const openPR = await step.run("open-pr", async () => {
       return await runOpenPR({
         runId: event.data.runId,
         repoRoot: event.data.repoRoot,
         branch: push.branch,
+        baseBranch: baseBranchInfo.branch,
         intake: intake.artifact,
         plan: plan.artifact,
         execute: finalExecute,

@@ -1,522 +1,216 @@
 # TPDC Engine
 
-AI-powered development workflow engine with structured pipelines for feature development, bug fixing, refactoring, code assessment, planning, and discovery.
+> **v2 alpha** — autonomous development workflow engine that takes a feature request and ships a PR with CI green, without human intervention beyond optional clarification rounds.
 
-Installable as a **Claude Code plugin** or usable as a **standalone CLI**.
+⚠️ **Status:** v2 is in active development (`0.2.0-alpha.x`). The pipeline is functional end-to-end and validated against a real GitHub repo with real CI, but the API surface, schemas, and CLI may change. The legacy v1 implementation lives under `*-v1-archive/` directories and is no longer maintained.
 
-## Quick Start
+---
 
-### As a Claude Code Plugin
+## What it does
 
-```bash
-# Inside Claude Code:
-/plugin marketplace add Mtrejo11/tpdc-engine
-/plugin install tpdc@tpdc
-/reload-plugins
-```
+Given a request like *"Add a `parseInteger(input)` function that throws on invalid input and add tests"*, TPDC v2:
 
-Then use any command:
-```
-/tpdc:show
-/tpdc:discovery "We need to add real-time notifications to the app"
-/tpdc:fix "Login form crashes on empty email submission"
-```
+1. **Intakes** — converts the request into a structured ticket with binary acceptance criteria. Asks clarifying questions if the request is too vague.
+2. **Plans** — breaks it into ordered, PR-shaped steps with dependencies, risk level, and concrete validation commands.
+3. **Executes** — agentic loop with `bash` + `text_editor` tools scoped to a fresh git worktree, writes code respecting the plan.
+4. **Validates** — runs `npm test` (or whatever the plan specified), auto-fixes test failures with up to 3 retries.
+5. **Pushes** — `git push -u origin <branch>` with worktree cleanup.
+6. **Opens a PR** — `gh pr create` with title from the intake and a body auto-rendered from intake + plan + diff + test results.
+7. **Waits for CI** — workflow hibernates on `step.waitForEvent`, wakes when GitHub's check_suite completes.
+8. **Auto-fixes CI failures** — if CI fails, fetches logs, dispatches a fix-mode execute, force-pushes, re-waits. Up to 3 retries.
 
-### As a Standalone CLI
+Final outcome: a PR with CI green, ready for human review and merge.
 
-```bash
-npx tpdc show
-npx tpdc solve "Add password reset flow with email verification"
-npx tpdc fix "Dashboard charts don't render on Safari"
-```
+---
 
-### From Source
+## Architecture (one paragraph)
+
+TPDC v2 is a TypeScript ESM project running on Node 22+. Workflows are durable: built on **Inngest** for state persistence, retries, and hibernation across hours/days. The agent loop uses **Claude Sonnet 4.6** via Anthropic's structured outputs (Zod-validated) plus an **Advisor pattern** option for complex decisions (Opus 4.6 escalation). Each pipeline stage is a focused module with its own schema, prompt, and tests. Three "resolver" helpers (`resolve-intake`, `resolve-plan`, `resolve-tests`, `resolve-ci`) implement evaluator-optimizer loops with explicit budget caps and no-progress guards. GitHub integration uses `gh` CLI (zero new deps; gh handles auth) plus a Hono webhook receiver for CI events.
+
+For the full design rationale, see `~/Documents/Claude/Projects/TPDC/DECISIONS.md` (architectural decisions log) and `~/Documents/Claude/Projects/TPDC/research/` (the 7 research dossiers that informed v2).
+
+---
+
+## Quick start
+
+### Requirements
+
+- **Node 22+**
+- **`gh` CLI** logged in (`gh auth login`) for the push/PR stages
+- **`ANTHROPIC_API_KEY`** for the LLM calls
+- **Inngest dev server** for local workflow execution
+- **A public URL** (cloudflared or ngrok) for the GitHub webhook in dev
+
+### Install
 
 ```bash
 git clone https://github.com/Mtrejo11/tpdc-engine.git
 cd tpdc-engine
 npm install
 npm run build
-node dist/cli.js show
+```
+
+### Run locally
+
+```bash
+# Terminal 1 — TPDC server (Hono + Inngest endpoint + GitHub webhook)
+export ANTHROPIC_API_KEY=sk-ant-...
+export GITHUB_WEBHOOK_SECRET=<random-secret>
+npm run dev
+
+# Terminal 2 — Inngest dev server (function discovery + UI at :8288)
+npm run inngest:dev
+
+# Terminal 3 — public tunnel for the webhook
+cloudflared tunnel --url http://localhost:3000
+```
+
+### Configure the GitHub repo (target of the workflow)
+
+In the target repo's `Settings → Webhooks`:
+- **Payload URL**: `<TUNNEL_URL>/api/github/webhook`
+- **Content type**: `application/json`
+- **Secret**: same as `GITHUB_WEBHOOK_SECRET` above
+- **Events**: only "Check suites"
+
+The repo also needs a GitHub Actions workflow running tests (e.g., `node --test test/*.test.js`). Without it, no `check_suite` event fires and the wait-CI stage hibernates until timeout.
+
+### Trigger a workflow
+
+```bash
+curl -X POST http://localhost:8288/e/test-key \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "tpdc/feature.requested",
+    "data": {
+      "runId": "my-first-run",
+      "request": "Add a function `multiply(a, b)` to src/index.js (ESM) that returns a*b. Add a test in test/multiply.test.js using node:test.",
+      "repoRoot": "/path/to/your/repo"
+    }
+  }'
+```
+
+Watch the run progress at `http://localhost:8288`. If intake or plan asks clarifying questions, answer with `tpdc unblock`:
+
+```bash
+# Read the questions from the Inngest UI, write your answers as JSON
+cat > answers.json <<EOF
+[
+  { "question": "Which platforms?", "answer": "Web only" }
+]
+EOF
+
+node dist/cli/index.js unblock my-first-run --answers ./answers.json
+```
+
+For plan stage clarifications, the JSON shape is `[{ blocker, resolution }, ...]` and you pass `--stage plan`.
+
+---
+
+## CLI
+
+```
+tpdc version
+tpdc unblock <runId> --answers <path-to-json> [--stage intake|plan]
 ```
 
 ---
 
-## Commands
+## Pipeline (full surface)
 
-### Execution Commands
+```
+                       USER REQUEST
+                            │
+                            ▼
+              ┌─ intake (with unblock loop)
+              │     │
+              │     ▼ readiness=ready
+              ├─ plan (with unblock loop)
+              │     │
+              │     ▼ readiness=ready, steps>0
+              ├─ execute (worktree + agent loop + commit)
+              │     │
+              │     ▼ status=completed
+              ├─ run-tests + auto-fix loop          ← stage 8 local
+              │     │
+              │     ▼ status=all_passed
+              ├─ push (with worktree cleanup)
+              │     │
+              │     ▼ status=pushed
+              ├─ open-PR (gh pr create)
+              │     │
+              │     ▼ status=opened
+              ╰─ wait-CI + auto-fix CI loop         ← stage 8 remote
+                    │
+                    ▼ status=success
+                  DONE: { stage: "ci-green" }
+```
 
-| Command | Purpose | Mutation | Example |
-|---------|---------|----------|---------|
-| `solve` | Run the full pipeline | Yes | `tpdc solve "Add password reset flow with email verification"` |
-| `fix` | Bug-fix with input normalization | Yes | `tpdc fix "Login form crashes on empty email submission on iOS"` |
-| `refactor` | Structural improvement | Yes | `tpdc refactor "Extract authentication logic into a dedicated service"` |
-| `develop` | End-to-end orchestrated workflow | Yes | `tpdc develop feature "Add user profile settings page"` |
-
-### Analysis Commands (Safe Mode Only)
-
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `discovery` | Frame a vague idea before execution | `tpdc discovery "We need to add real-time notifications"` |
-| `assess` | Security, performance, or architecture audit | `tpdc assess "Evaluate SQL injection risks in the search API"` |
-| `plan` | Technical implementation plan with phases | `tpdc plan "Migrate from REST to GraphQL"` |
-
-### Inspection Commands
-
-| Command | Purpose | Example |
-|---------|---------|---------|
-| `show` | List recent runs or inspect a specific run | `tpdc show` / `tpdc show d2ae7adf` |
-| `diff` | Show patch diffs for a mutation run | `tpdc diff d2ae7adf` |
+Each gate halts cleanly with a structured reason. Each loop has a budget cap (3 retries default) and no-progress guards. The auto-fix loops use the **evaluator-optimizer** pattern from Anthropic's "Building effective AI agents" — local tests covered by `resolve-tests.ts`, remote CI covered by `resolve-ci.ts`.
 
 ---
 
-## How It Works
-
-Every command runs through the TPDC engine pipeline:
-
-```
-intake → design → decompose → execute → validate
-```
-
-Each stage is powered by a pluggable **capability** — an LLM prompt with input/output schema validation.
-
-### Pipeline Stages
-
-| Stage | What It Does |
-|-------|-------------|
-| **Intake** | Normalizes the request into a structured ticket with acceptance criteria |
-| **Design** | Produces an Architecture Decision Record (ADR) with scope, risks, alternatives |
-| **Decompose** | Breaks the design into ordered implementation steps with dependencies |
-| **Execute** | Generates execution artifacts or patches (safe or mutation mode) |
-| **Validate** | Evaluates execution quality, scores 0-100, surfaces findings |
-
-### Execution Modes
-
-**Safe mode** (default): Analyzes and plans without touching any files.
-
-**Mutation mode** (`--apply`): Generates patches, validates them via dry-run, shows a preview, and applies after confirmation.
-
-```bash
-tpdc fix "Bug description" --apply --repo-root ~/my-project
-```
-
-Mutation flow:
-```
-execute-patch → dry-run → preview → confirmation → git apply → validate
-```
-
----
-
-## Command Details
-
-### `solve`
-
-Full pipeline execution. The general-purpose command.
-
-```bash
-tpdc solve "Add two-factor authentication to the login flow"
-tpdc solve "Implement dark mode" --apply --repo-root ~/project
-```
-
-### `fix`
-
-Bug-fix flow. Normalizes bug reports by extracting platform, component, actual/expected behavior. If context is missing, suggests a clarified bug report.
-
-```bash
-tpdc fix "Dashboard charts don't render on Safari 17"
-tpdc fix "Form validation error messages disappear after 1 second on Android"
-```
-
-Output includes: detected context, missing fields, validation checklist, suggested clarified input.
-
-### `refactor`
-
-Structural improvement without changing functional behavior. Detects the refactor category automatically:
-
-| Category | Triggers |
-|----------|----------|
-| Extraction | extract, pull out, move to, factor out |
-| Decomposition | split, break down, decompose |
-| Consolidation | consolidate, merge, centralize, DRY |
-| Simplification | simplify, remove, clean up, flatten |
-| Architecture | introduce layer, decouple, separate concerns |
-
-```bash
-tpdc refactor "Extract payment processing into a dedicated service"
-tpdc refactor "Split the UserProfile component into smaller sub-components"
-tpdc refactor "Consolidate duplicate API error handling across services"
-```
-
-Output includes: targets, risk level (low/medium/high), structural issues, strategy, affected files, expected benefits.
-
-### `assess`
-
-Analysis/audit mode. Auto-detects the assessment category:
-
-| Category | Triggers |
-|----------|----------|
-| Security | security, vulnerability, XSS, auth, token, encryption |
-| Performance | performance, latency, bottleneck, memory, render |
-| Architecture | architecture, coupling, separation of concerns, SOLID |
-
-```bash
-tpdc assess "Evaluate SQL injection risks in the search API"
-tpdc assess "Analyze rendering performance on the dashboard page"
-tpdc assess "Review module coupling between auth and user services"
-```
-
-Output includes: scope, findings by risk level (critical/high/medium/low), evidence, recommended actions.
-
-### `plan`
-
-Technical implementation plan without generating patches.
-
-```bash
-tpdc plan "Migrate from REST to GraphQL"
-tpdc plan "Add end-to-end encryption for direct messages"
-```
-
-Output includes: objective, scope, ordered phases with dependencies, likely files, validation approach, readiness status.
-
-### `discovery`
-
-Pre-execution framing for vague ideas. Classifies questions as critical (blocking) or informational (non-blocking).
-
-```bash
-tpdc discovery "We need to add real-time notifications to the app"
-tpdc discovery "We want to support offline mode for mobile users"
-```
-
-Output includes: problem framing, affected areas, impact areas, tradeoffs, decision drivers, readiness (ready/needs_input/not_ready), suggested next command.
-
-### `develop`
-
-End-to-end orchestrated workflow. Chains existing commands step by step.
-
-```bash
-tpdc develop feature "Add user profile settings page"     # discovery → plan → solve
-tpdc develop bug "Checkout fails on expired session"       # fix (with context validation)
-tpdc develop refactor "Decouple the notification module"   # refactor
-```
-
-Stopping rules:
-- Discovery not ready → stops, shows critical questions
-- Plan blocked → stops, shows blockers
-- Fix blocked → stops, shows missing context
-- Confirmation declined → summarizes without mutation
-
-### `show`
-
-Inspect workflow runs.
-
-```bash
-tpdc show                  # List recent runs
-tpdc show d2ae7adf         # Inspect specific run (partial ID match)
-```
-
-### `diff`
-
-Show patch diffs for mutation runs with color-coded output.
-
-```bash
-tpdc diff d2ae7adf
-```
-
----
-
-## Capabilities
-
-The engine ships with 6 installed capabilities:
-
-| Capability | Stage | Version |
-|-----------|-------|---------|
-| `intake` | Intake | 0.1.0 |
-| `design` | Design | 0.1.0 |
-| `decompose` | Decompose | 0.1.0 |
-| `execute` | Execute (safe) | 0.1.0 |
-| `execute-patch` | Execute (mutation) | 0.1.0 |
-| `validate` | Validate | 0.1.0 |
-
-Each capability is a bundle containing:
-- `capability.json` — manifest (id, version, stage)
-- `prompt.md` — system prompt for the LLM
-- `input.schema.json` — input validation schema
-- `output.schema.json` — output validation schema
-
-```bash
-tpdc list-capabilities     # List all installed capabilities
-tpdc install-capability <path>  # Install a new capability bundle
-```
-
----
-
-## Self-Learning Loop
-
-TPDC learns from its own runs. After every workflow:
-
-1. **Extract** — derives lessons from blocked runs, findings, dry-run failures, mutation outcomes
-2. **Aggregate** — merges patterns into `memory/lessons.json` (deduplicates, counts occurrences)
-3. **Inject** — prepends relevant prior lessons as context hints to future workflow requests
-
-Example: if 3 prior `fix` runs blocked because platform wasn't specified, the next `fix` run gets:
-```
-Context from prior TPDC runs:
-Prior learnings (from past runs):
-- Requests involving mobile features should specify the target platform (iOS/Android/both) (seen 3x)
-```
-
----
-
-## LLM Adapters
-
-The engine supports multiple LLM backends:
-
-| Adapter | Config | Use Case |
-|---------|--------|----------|
-| **Claude Code CLI** (default) | `TPDC_ADAPTER=cli` | Uses Max subscription tokens via `claude --print` |
-| **Claude API** | `TPDC_ADAPTER=api` + `ANTHROPIC_API_KEY` | Direct API calls |
-| **Mock** | `TPDC_ADAPTER=mock` | Testing with stub responses |
-
-Set the model:
-```bash
-TPDC_MODEL=opus tpdc solve "Complex architectural request"
-```
-
----
-
-## Mutation Mode
-
-Commands that support mutation (`solve`, `fix`, `refactor`, `develop`) can generate and apply patches:
-
-```bash
-tpdc fix "Bug description" --apply --repo-root ~/my-project
-tpdc fix "Bug description" --apply --confirm-apply --repo-root ~/my-project  # Non-interactive
-tpdc fix "Bug description" --apply --interactive --repo-root ~/my-project     # Prompt before apply
-```
-
-The mutation flow:
-1. **Patch generation** — LLM produces unified diffs grounded in actual file content
-2. **Dry-run** — validates patches against current files (context line matching, safety checks)
-3. **Preview** — shows files, operations, diffs, and what will happen
-4. **Confirmation** — user confirms before any files are touched
-5. **Git apply** — creates a branch, applies patches, commits
-6. **Validate** — evaluates the applied changes
-
-No silent applies. Ever.
-
----
-
-## Artifacts
-
-Every run persists structured artifacts to `artifacts/<workflowId>/`:
-
-```
-artifacts/wf_1773635212409_d2ae7adf/
-├── intake.json              # Structured ticket
-├── design.json              # Architecture Decision Record
-├── decompose.json           # Implementation plan
-├── execute.json             # Execution artifacts
-├── validate.json            # Evaluation + score
-├── workflow.json            # Run metadata
-├── learning.json            # Extracted lessons
-├── summary.md               # Human-readable summary
-├── *.lineage.json           # Stage lineage metadata
-└── *.raw.txt                # Raw LLM outputs
-```
-
----
-
-## Claude Code Plugin
-
-### Plugin Structure
-
-```
-tpdc-plugin/
-├── .claude-plugin/
-│   ├── plugin.json          # Plugin manifest
-│   └── marketplace.json     # Marketplace config
-├── .claude/
-│   └── settings.json        # Plugin settings
-├── .mcp.json                # MCP server registration
-├── CLAUDE.md                # Instructions for Claude
-├── README.md                # Plugin docs
-└── skills/
-    ├── assess/SKILL.md
-    ├── develop/SKILL.md
-    ├── diff/SKILL.md
-    ├── discovery/SKILL.md
-    ├── fix/SKILL.md
-    ├── plan/SKILL.md
-    ├── refactor/SKILL.md
-    ├── show/SKILL.md
-    └── solve/SKILL.md
-```
-
-### MCP Server
-
-The plugin provides a stdio MCP server with 9 tools:
-
-| Tool | Description |
-|------|-------------|
-| `tpdc_develop` | End-to-end workflow (feature/bug/refactor) |
-| `tpdc_discovery` | Discovery and framing |
-| `tpdc_assess` | Assessment and audit |
-| `tpdc_plan` | Implementation planning |
-| `tpdc_solve` | Full pipeline execution |
-| `tpdc_fix` | Bug-fix flow |
-| `tpdc_refactor` | Structural improvement |
-| `tpdc_show` | Run inspection |
-| `tpdc_diff` | Patch diff viewer |
-
-### Slash Commands
-
-After installing the plugin, these slash commands are available in Claude Code:
-
-```
-/tpdc:develop feature "Add user profile settings page"
-/tpdc:discovery "We want to support offline mode"
-/tpdc:assess "Evaluate SQL injection risks in the search API"
-/tpdc:plan "Migrate from REST to GraphQL"
-/tpdc:solve "Add two-factor authentication"
-/tpdc:fix "Login form crashes on empty email submission"
-/tpdc:refactor "Extract payment processing into a service"
-/tpdc:show
-/tpdc:diff d2ae7adf
-```
-
----
-
-## Installation
-
-### Option 1: Claude Code Plugin (Recommended)
-
-```bash
-# Inside Claude Code:
-/plugin marketplace add Mtrejo11/tpdc-engine
-/plugin install tpdc@tpdc
-/reload-plugins
-```
-
-### Option 2: npm Global Install
-
-```bash
-npm install -g tpdc-engine
-tpdc show
-tpdc solve "Your request"
-```
-
-### Option 3: npx (No Install)
-
-```bash
-npx tpdc-engine show
-npx tpdc-engine solve "Your request"
-```
-
-### Option 4: From Source
-
-```bash
-git clone https://github.com/Mtrejo11/tpdc-engine.git
-cd tpdc-engine
-npm install
-npm run build
-node dist/cli.js show
-```
-
-### Uninstall
-
-```bash
-# Claude Code plugin:
-/plugin uninstall tpdc@tpdc
-/plugin marketplace remove tpdc
-
-# npm:
-npm uninstall -g tpdc-engine
-```
-
----
-
-## Architecture
+## Repository layout
 
 ```
 src/
-├── cli.ts                  # CLI entry point (9 commands)
-├── index.ts                # Library exports
-├── mcp/                    # MCP stdio server
-├── integration/            # Claude integration (parser, dispatcher, develop orchestrator)
-├── runtime/                # Workflow orchestrator + LLM adapters
-├── plugin/
-│   ├── handlers/           # Normalizers + artifact builders per command
-│   └── renderers/          # CLI + markdown renderers per command
-├── learning/               # Self-learning loop (extract, store, inject)
-├── patch/                  # Patch system (parse, dry-run, safety, apply, git)
-├── protocols/              # Bundled schemas (intake, design, plan, execution, eval)
-├── registry/               # Capability loader
-├── storage/                # Run persistence + summary generation
-└── orchestrator/           # Pipeline coordination
+├── runtime/                    # Executor + Advisor primitives
+├── stages/
+│   ├── intake/                 # Stage 1: structured ticket from raw request
+│   ├── plan/                   # Stage 2: ordered steps with testCommands
+│   ├── execute/                # Stage 3: agentic worktree edits with bash + text_editor
+│   ├── run-tests/              # Stage 4: validation via plan.testCommands
+│   ├── push/                   # Stage 5: git push + worktree cleanup
+│   └── open-pr/                # Stage 6: gh pr create with body template
+├── inngest/
+│   ├── client.ts               # Inngest typed event client
+│   └── workflows/
+│       ├── lib/                # resolve-intake, resolve-plan, resolve-tests, resolve-ci
+│       └── ship-feature.ts     # Main pipeline workflow
+├── server/
+│   └── github-webhook.ts       # check_suite parser + HMAC verify
+├── server.ts                   # Hono server (Inngest + GitHub webhook routes)
+├── schemas/events.ts           # Zod schemas for all Inngest events
+├── cli/                        # tpdc CLI (version, unblock)
+└── mcp/                        # MCP server stub (future v2.x)
 
-capabilities/installed/     # 6 capability bundles
-tpdc-plugin/                # Claude Code plugin package
-artifacts/                  # Workflow run outputs (gitignored)
-memory/                     # Learning store (gitignored)
+dist/                           # Build output (regenerated by tsc; not committed)
+*-v1-archive/                   # Legacy v1 implementation (read-only reference)
 ```
 
 ---
 
-## Testing
-
-795 tests across 10 suites:
+## Tests
 
 ```bash
-npm run test:fix            # 40 tests — bug normalizer + renderer
-npm run test:assess         # 47 tests — assessment normalizer + renderer
-npm run test:discovery      # 95 tests — discovery artifact + readiness + renderer
-npm run test:refactor       # 103 tests — refactor categories + risk + renderer
-npm run test:plan           # 85 tests — plan artifact + phases + renderer
-npm run test:learning       # 48 tests — extraction, aggregation, injection
-npm run test:mutation-ux    # 66 tests — preview, apply, rollback, show/diff
-npm run test:integration    # 81 tests — parser, dispatcher, Claude integration
-npm run test:develop        # 84 tests — orchestrator flows + stopping rules
-npm run test:mcp-plugin     # 146 tests — MCP tools, skills, manifests, plugin structure
+npm test            # 140 unit tests + 2 integration (skipped without ANTHROPIC_API_KEY)
+npm run test:watch  # vitest in watch mode
+npm run test:coverage
 ```
 
-CI runs on every push via GitHub Actions.
+Integration tests that hit the real Anthropic API are gated by `ANTHROPIC_API_KEY` env var and cost a few cents per run. Worktree integration tests use real git in `mkdtemp` directories.
 
 ---
 
-## Troubleshooting
+## What's NOT in v2 alpha
 
-### MCP server not starting
-```bash
-# Verify the build exists:
-ls ~/.claude/plugins/marketplaces/tpdc/dist/mcp/server.js
+This is `0.2.0-alpha`, not a feature-complete release. Known gaps:
 
-# Install dependencies if missing:
-cd ~/.claude/plugins/marketplaces/tpdc && npm install
+- **Webhook setup is manual** — no automated provisioning. Each smoke session needs a fresh ngrok/cloudflared tunnel.
+- **No telemetry / observability** — `console.log` from Inngest is the audit trail.
+- **No multi-repo orchestration** — one workflow run targets one repo via `repoRoot`.
+- **No agent skill marketplace** — stages are fixed code; you can't drop a `.skill.md` to extend the pipeline.
+- **MCP server is a stub** — there's a placeholder for shipping TPDC as a Claude Code plugin via stdio MCP, but it's not implemented in alpha.
+- **One-on-one stage tools** — `bash` + `text_editor` only. No browser automation, no remote services, no `web_fetch` tool wired into execute.
+- **Single-attempt fix loops not validated end-to-end** — local auto-fix loop is unit-tested but not exercised in production yet (the agent has been getting first-try right in smokes).
 
-# Test the server manually:
-node ~/.claude/plugins/marketplaces/tpdc/dist/mcp/server.js
-```
+The `HANDOFF.md` doc in this directory's parent `Documents/Claude/Projects/TPDC/` directory tracks the latest tech debt and roadmap.
 
-### Commands not appearing after plugin install
-```
-/reload-plugins
-```
-Check `/plugin` → Installed tab → verify `tpdc@tpdc` is enabled.
+---
 
-### Workflow blocks with missing context
-This is intentional. The engine blocks when critical information is missing (platform, component, desired behavior). Provide the missing context and re-run.
+## Origins
 
-### LLM adapter errors
-```bash
-# Use Claude Code CLI (default, uses Max subscription):
-TPDC_ADAPTER=cli tpdc solve "request"
-
-# Use direct API:
-ANTHROPIC_API_KEY=sk-... tpdc solve "request"
-
-# Use mock for testing:
-TPDC_ADAPTER=mock tpdc solve "request"
-```
+TPDC v2 is a clean rewrite that started from a 7-frente research dossier evaluating cutting-edge architectures from Anthropic, Cognition (Devin), Cursor, Sourcegraph, and others. The full design log lives in `~/Documents/Claude/Projects/TPDC/DECISIONS.md` (5 architectural decisions, ADR-style). The v1 implementation that preceded it lives under `*-v1-archive/` for reference.
 
 ---
 

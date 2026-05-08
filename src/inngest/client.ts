@@ -16,6 +16,8 @@ import type {
   FeatureRequested,
   IntakeUnblockRequested,
   IntakeUnblocked,
+  PlanUnblockRequested,
+  PlanUnblocked,
 } from "../schemas/events.js";
 
 export type TpdcEvents = {
@@ -23,6 +25,8 @@ export type TpdcEvents = {
   "tpdc/ci.completed": { data: CiCompleted };
   "tpdc/intake.unblock_requested": { data: IntakeUnblockRequested };
   "tpdc/intake.unblocked": { data: IntakeUnblocked };
+  "tpdc/plan.unblock_requested": { data: PlanUnblockRequested };
+  "tpdc/plan.unblocked": { data: PlanUnblocked };
 };
 
 export const inngest = new Inngest({

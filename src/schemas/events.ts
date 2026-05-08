@@ -63,3 +63,36 @@ export const IntakeUnblockedSchema = z.object({
   answers: z.array(UnblockAnswerSchema).min(1),
 });
 export type IntakeUnblocked = z.infer<typeof IntakeUnblockedSchema>;
+
+// ── Plan unblock events ──────────────────────────────────────────────
+//
+// Plan blockers have a different shape than intake openQuestions:
+// each blocker is { description, resolution? } (the model says what's
+// missing and what would unblock it). The user answers by providing a
+// concrete resolution for each.
+
+const PlanBlockerEchoSchema = z.object({
+  description: z.string(),
+  resolution: z.string(),
+});
+
+export const PlanUnblockRequestedSchema = z.object({
+  runId: z.string(),
+  attempt: z.number().int().min(1),
+  blockers: z.array(PlanBlockerEchoSchema).min(1),
+});
+export type PlanUnblockRequested = z.infer<typeof PlanUnblockRequestedSchema>;
+
+export const PlanResolutionSchema = z.object({
+  /** The blocker's description (verbatim from PlanArtifact.blockers[].description). */
+  blocker: z.string().min(1),
+  /** What the human says to unblock it. */
+  resolution: z.string().min(1),
+});
+export type PlanResolution = z.infer<typeof PlanResolutionSchema>;
+
+export const PlanUnblockedSchema = z.object({
+  runId: z.string(),
+  resolutions: z.array(PlanResolutionSchema).min(1),
+});
+export type PlanUnblocked = z.infer<typeof PlanUnblockedSchema>;

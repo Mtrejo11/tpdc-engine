@@ -20,6 +20,8 @@
 import * as fs from "node:fs/promises";
 import {
   IntakeUnblockedSchema,
+  PlanResolutionSchema,
+  PlanUnblockedSchema,
   UnblockAnswerSchema,
 } from "../schemas/events.js";
 import { z } from "zod";
@@ -27,7 +29,8 @@ import { z } from "zod";
 const DEFAULT_INNGEST_BASE = "http://localhost:8288";
 const DEFAULT_EVENT_KEY = "test-key";
 
-const AnswersFileSchema = z.array(UnblockAnswerSchema).min(1);
+const IntakeAnswersFileSchema = z.array(UnblockAnswerSchema).min(1);
+const PlanResolutionsFileSchema = z.array(PlanResolutionSchema).min(1);
 
 export async function runUnblock(args: string[]): Promise<void> {
   const [runId, ...rest] = args;
@@ -38,7 +41,7 @@ export async function runUnblock(args: string[]): Promise<void> {
   }
 
   let answersPath: string | null = null;
-  let stage: "intake" = "intake";
+  let stage: "intake" | "plan" = "intake";
 
   for (let i = 0; i < rest.length; i++) {
     const flag = rest[i];
@@ -51,10 +54,8 @@ export async function runUnblock(args: string[]): Promise<void> {
       answersPath = next;
     } else if (flag === "--stage") {
       const next = rest[++i];
-      if (next !== "intake") {
-        console.error(
-          `error: --stage must be "intake" (plan unblock not implemented yet)`,
-        );
+      if (next !== "intake" && next !== "plan") {
+        console.error(`error: --stage must be "intake" or "plan"`);
         process.exit(2);
       }
       stage = next;
@@ -90,20 +91,45 @@ export async function runUnblock(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const validation = AnswersFileSchema.safeParse(parsedJson);
-  if (!validation.success) {
-    console.error(`error: ${answersPath} does not match the expected shape.`);
-    console.error("Expected: an array of { question: string, answer: string }");
-    console.error(`Issues:`);
-    for (const issue of validation.error.issues) {
-      console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
-    }
-    process.exit(1);
-  }
-  const answers = validation.data;
+  // Build payload — shape depends on stage
+  let eventName: string;
+  let eventPayload: unknown;
+  let countLabel: string;
+  let count: number;
 
-  // Build the event payload
-  const eventPayload = IntakeUnblockedSchema.parse({ runId, answers });
+  if (stage === "intake") {
+    const validation = IntakeAnswersFileSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.error(`error: ${answersPath} does not match the expected shape.`);
+      console.error("Expected: an array of { question: string, answer: string }");
+      console.error(`Issues:`);
+      for (const issue of validation.error.issues) {
+        console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
+      }
+      process.exit(1);
+    }
+    const answers = validation.data;
+    eventPayload = IntakeUnblockedSchema.parse({ runId, answers });
+    eventName = "tpdc/intake.unblocked";
+    countLabel = "answer";
+    count = answers.length;
+  } else {
+    const validation = PlanResolutionsFileSchema.safeParse(parsedJson);
+    if (!validation.success) {
+      console.error(`error: ${answersPath} does not match the expected shape.`);
+      console.error("Expected: an array of { blocker: string, resolution: string }");
+      console.error(`Issues:`);
+      for (const issue of validation.error.issues) {
+        console.error(`  - ${issue.path.join(".")}: ${issue.message}`);
+      }
+      process.exit(1);
+    }
+    const resolutions = validation.data;
+    eventPayload = PlanUnblockedSchema.parse({ runId, resolutions });
+    eventName = "tpdc/plan.unblocked";
+    countLabel = "resolution";
+    count = resolutions.length;
+  }
 
   const baseUrl = process.env.INNGEST_BASE_URL ?? DEFAULT_INNGEST_BASE;
   const eventKey = process.env.INNGEST_EVENT_KEY ?? DEFAULT_EVENT_KEY;
@@ -115,7 +141,7 @@ export async function runUnblock(args: string[]): Promise<void> {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: `tpdc/${stage}.unblocked`,
+        name: eventName,
         data: eventPayload,
       }),
     });
@@ -139,7 +165,7 @@ export async function runUnblock(args: string[]): Promise<void> {
   }
 
   console.log(
-    `Sent tpdc/${stage}.unblocked for runId=${runId} with ${answers.length} answer(s).`,
+    `Sent ${eventName} for runId=${runId} with ${count} ${countLabel}${count === 1 ? "" : "s"}.`,
   );
   console.log(`Watch the workflow resume at ${baseUrl}.`);
 }
@@ -147,26 +173,36 @@ export async function runUnblock(args: string[]): Promise<void> {
 function printUsage(): void {
   console.log(
     [
-      `Usage: tpdc unblock <runId> --answers <path-to-json> [--stage intake]`,
+      `Usage: tpdc unblock <runId> --answers <path-to-json> [--stage intake|plan]`,
       ``,
       `Sends a tpdc/<stage>.unblocked event to the Inngest dev server,`,
       `waking up a workflow that hibernated at the unblock gate.`,
       ``,
       `Required:`,
       `  <runId>                    The runId of the halted workflow`,
-      `  --answers <path>           JSON file: [{question, answer}, ...]`,
+      `  --answers <path>           JSON file (shape depends on --stage)`,
       ``,
       `Optional:`,
-      `  --stage intake             Default "intake" (only stage supported now)`,
+      `  --stage intake|plan        Default "intake".`,
+      ``,
+      `Answers file shape:`,
+      `  --stage intake: [{ question, answer }, ...]`,
+      `  --stage plan:   [{ blocker, resolution }, ...]`,
       ``,
       `Env vars:`,
       `  INNGEST_BASE_URL           default http://localhost:8288`,
       `  INNGEST_EVENT_KEY          default "test-key"`,
       ``,
-      `Example answers.json:`,
+      `Example intake answers.json:`,
       `  [`,
       `    { "question": "Which platforms?", "answer": "Web only" },`,
       `    { "question": "Token expiry?", "answer": "30 minutes" }`,
+      `  ]`,
+      ``,
+      `Example plan resolutions.json:`,
+      `  [`,
+      `    { "blocker": "Frontend framework not specified", "resolution": "React" },`,
+      `    { "blocker": "Auth method unclear", "resolution": "Existing JWT in src/auth/" }`,
       `  ]`,
     ].join("\n"),
   );

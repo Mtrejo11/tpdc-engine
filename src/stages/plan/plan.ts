@@ -23,6 +23,12 @@ export interface PlanRequest {
   model?: string;
   /** Optional client override (for tests). */
   client?: Anthropic;
+  /**
+   * Optional markdown appended to the user input. Used by resolve-plan.ts
+   * to provide resolutions for previous-attempt blockers when retrying
+   * the plan stage in unblock mode.
+   */
+  additionalContext?: string;
 }
 
 export interface PlanResult {
@@ -44,7 +50,10 @@ export async function runPlan(req: PlanRequest): Promise<PlanResult> {
 
   // Serialize the intake artifact as JSON for the LLM. Sonnet handles
   // structured JSON inputs well; we don't need to pretty-print.
-  const userInput = JSON.stringify(req.intake, null, 2);
+  const baseInput = JSON.stringify(req.intake, null, 2);
+  const userInput = req.additionalContext
+    ? `${baseInput}\n\n${req.additionalContext}`
+    : baseInput;
 
   const result = await runExecutor({
     systemPrompt: PLAN_SYSTEM_PROMPT,
