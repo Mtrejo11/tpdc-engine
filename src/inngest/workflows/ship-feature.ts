@@ -12,6 +12,7 @@
  */
 
 import { runIntake } from "../../stages/intake/intake.js";
+import { runPlan } from "../../stages/plan/plan.js";
 import { inngest } from "../client.js";
 
 export const shipFeature = inngest.createFunction(
@@ -50,6 +51,7 @@ export const shipFeature = inngest.createFunction(
     if (intake.artifact.readiness === "not_ready") {
       return {
         status: "blocked" as const,
+        stage: "intake" as const,
         reason: "intake reported not_ready",
         runId: event.data.runId,
         intake: intake.artifact,
@@ -59,6 +61,7 @@ export const shipFeature = inngest.createFunction(
     if (intake.artifact.readiness === "needs_input" && blocking.length > 0) {
       return {
         status: "needs_input" as const,
+        stage: "intake" as const,
         reason: `intake has ${blocking.length} blocking open question(s)`,
         runId: event.data.runId,
         intake: intake.artifact,
@@ -66,14 +69,58 @@ export const shipFeature = inngest.createFunction(
       };
     }
 
-    // TODO: plan, execute (worktree), run-tests, push, open-PR
+    // ── Stage 2: Plan ────────────────────────────────────────────────
+    // Take the intake and produce an ordered, executable plan.
+    const plan = await step.run("plan", async () => {
+      return await runPlan({
+        runId: event.data.runId,
+        intake: intake.artifact,
+      });
+    });
+
+    logger.info("Plan complete", {
+      runId: event.data.runId,
+      readiness: plan.artifact.readiness,
+      stepCount: plan.artifact.steps.length,
+      riskLevel: plan.artifact.riskLevel,
+      blockerCount: plan.artifact.blockers.length,
+      tokensIn: plan.usage.inputTokens,
+      tokensOut: plan.usage.outputTokens,
+    });
+
+    // Gate: plan must be ready and have steps to proceed.
+    if (plan.artifact.readiness !== "ready") {
+      return {
+        status: plan.artifact.readiness === "not_ready" ? ("blocked" as const) : ("needs_input" as const),
+        stage: "plan" as const,
+        reason: `plan reported ${plan.artifact.readiness}`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        blockers: plan.artifact.blockers,
+      };
+    }
+    if (plan.artifact.steps.length === 0) {
+      return {
+        status: "blocked" as const,
+        stage: "plan" as const,
+        reason: "plan reported ready but produced zero steps",
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+      };
+    }
+
+    // TODO: execute (worktree), run-tests, push, open-PR
     // TODO: step.waitForEvent("tpdc/ci.completed", ...)
     // TODO: auto-fix-CI loop (evaluator-optimizer pattern)
 
     return {
       status: "stub" as const,
+      stage: "post-plan" as const,
       runId: event.data.runId,
       intake: intake.artifact,
+      plan: plan.artifact,
     };
   },
 );
