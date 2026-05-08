@@ -166,6 +166,41 @@ export async function commitChanges(
 }
 
 /**
+ * Re-create a worktree at the original path if it was removed (e.g., by
+ * push cleanup). The branch is expected to still exist locally — push uses
+ * `deleteBranch: false` so the branch ref survives worktree removal.
+ *
+ * Idempotent: if the path still exists, returns the handle unchanged.
+ *
+ * Why this exists: stage 5 push removes the worktree directory on success.
+ * Stage 8-remote (resolve-ci) needs to dispatch a fix-mode execute against
+ * the same branch, but with the directory gone every git command in the
+ * worktree fails with `spawn git ENOENT` (cwd doesn't exist). This helper
+ * checkouts the branch into a fresh worktree at the original path.
+ */
+export async function restoreWorktree(
+  repoRoot: string,
+  handle: WorktreeHandle,
+): Promise<WorktreeHandle> {
+  try {
+    await fs.access(handle.path);
+    return handle;
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+  }
+
+  await fs.mkdir(path.dirname(handle.path), { recursive: true });
+
+  await execFileAsync(
+    "git",
+    ["worktree", "add", handle.path, handle.branch],
+    { cwd: repoRoot },
+  );
+
+  return handle;
+}
+
+/**
  * Remove the worktree and delete its branch (only if branch is unmerged
  * elsewhere — git refuses to delete a branch with unmerged commits otherwise).
  *

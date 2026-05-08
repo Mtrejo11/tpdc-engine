@@ -17,8 +17,14 @@ vi.mock("../../../stages/push/push.js", () => ({
 vi.mock("../../../stages/run-tests/fetch-ci-logs.js", () => ({
   fetchCILogs: vi.fn(),
 }));
+// restoreWorktree is exercised by worktree.test.ts (real git in tmpdir).
+// Here we only need the resolve-ci control flow, so return the handle as-is.
+vi.mock("../../../stages/execute/worktree.js", () => ({
+  restoreWorktree: vi.fn(async (_repoRoot: string, handle: unknown) => handle),
+}));
 
 import { runExecute } from "../../../stages/execute/execute.js";
+import { restoreWorktree } from "../../../stages/execute/worktree.js";
 import { runPush } from "../../../stages/push/push.js";
 import { fetchCILogs } from "../../../stages/run-tests/fetch-ci-logs.js";
 import { resolveCIWithAutoFix } from "./resolve-ci.js";
@@ -111,6 +117,10 @@ describe("resolveCIWithAutoFix", () => {
     vi.mocked(runExecute).mockReset();
     vi.mocked(runPush).mockReset();
     vi.mocked(fetchCILogs).mockReset();
+    vi.mocked(restoreWorktree).mockClear();
+    vi.mocked(restoreWorktree).mockImplementation(
+      async (_repoRoot: string, handle: unknown) => handle as never,
+    );
     fakeStep.run.mockClear();
     fakeStep.waitForEvent.mockReset();
   });
@@ -280,6 +290,41 @@ describe("resolveCIWithAutoFix", () => {
     expect(opts.if).toContain("r-1");
   });
 
+  it("restores the worktree before each fix execute (regression: smoke 2026-05-08 ENOENT)", async () => {
+    fakeStep.waitForEvent
+      .mockResolvedValueOnce({
+        data: { runId: "r-1", prNumber: 1, status: "failure", failedJobs: [] },
+      })
+      .mockResolvedValueOnce({
+        data: { runId: "r-1", prNumber: 1, status: "success", failedJobs: [] },
+      });
+    vi.mocked(fetchCILogs).mockResolvedValueOnce({ ok: true, logs: "f" });
+    vi.mocked(runExecute).mockResolvedValueOnce(
+      makeExecute({ commitSha: "fixed", filesChanged: ["a", "b"] }),
+    );
+    vi.mocked(runPush).mockResolvedValueOnce(makePush());
+
+    await resolveCIWithAutoFix(baseOpts);
+
+    // restoreWorktree must be called with the repoRoot and a handle derived
+    // from the latest execute, before the fix-mode execute consumes it.
+    expect(restoreWorktree).toHaveBeenCalledTimes(1);
+    const restoreCall = vi.mocked(restoreWorktree).mock.calls[0]!;
+    expect(restoreCall[0]).toBe("/tmp/repo");
+    expect(restoreCall[1]).toMatchObject({
+      path: "/tmp/wt",
+      branch: "tpdc/run-r-1",
+      baseSha: "abc",
+    });
+
+    // And the resulting handle is what fix execute receives.
+    const fixExecuteCall = vi.mocked(runExecute).mock.calls[0]?.[0];
+    expect(fixExecuteCall?.existingWorktree).toMatchObject({
+      path: "/tmp/wt",
+      branch: "tpdc/run-r-1",
+    });
+  });
+
   it("each waitForEvent / fix attempt uses distinct step ids", async () => {
     fakeStep.waitForEvent
       .mockResolvedValueOnce({
@@ -302,6 +347,7 @@ describe("resolveCIWithAutoFix", () => {
 
     const stepIds = fakeStep.run.mock.calls.map((c) => c[0]);
     expect(stepIds).toContain("fetch-ci-logs-attempt-1");
+    expect(stepIds).toContain("restore-worktree-attempt-1");
     expect(stepIds).toContain("execute-fix-ci-attempt-1");
     expect(stepIds).toContain("push-fix-ci-attempt-1");
   });

@@ -21,6 +21,7 @@ import {
   createWorktree,
   listChangedFiles,
   removeWorktree,
+  restoreWorktree,
 } from "./worktree.js";
 
 const execFileAsync = promisify(execFile);
@@ -226,6 +227,61 @@ describe("worktree (integration with real git)", () => {
 
       const files = await listChangedFiles(handle);
       expect(new Set(files)).toEqual(new Set(["a.txt", "b.txt"]));
+    });
+  });
+
+  describe("restoreWorktree (regression: stage 8-remote CI fix needs worktree back)", () => {
+    it("returns the handle unchanged when the path still exists", async () => {
+      const handle = await createWorktree({ repoRoot: repoPath, runId });
+
+      const result = await restoreWorktree(repoPath, handle);
+
+      expect(result).toEqual(handle);
+      // Confirm the worktree is usable
+      const files = await listChangedFiles(result);
+      expect(files).toEqual([]);
+    });
+
+    it("re-creates the worktree at the original path when it was removed (the smoke bug)", async () => {
+      const handle = await createWorktree({ repoRoot: repoPath, runId });
+
+      await fs.writeFile(path.join(handle.path, "agent-work.txt"), "agent's work\n");
+      const commit = await commitChanges(handle, "agent's commit");
+      expect(commit.committed).toBe(true);
+
+      // Simulate push.ts cleanup: remove the worktree dir, keep the branch.
+      await removeWorktree(repoPath, handle, { deleteBranch: false });
+      await expect(fs.access(handle.path)).rejects.toThrow();
+
+      // Now the CI loop tries to reuse the handle — restoreWorktree should fix it.
+      const restored = await restoreWorktree(repoPath, handle);
+
+      expect(restored.path).toBe(handle.path);
+      expect(restored.branch).toBe(handle.branch);
+
+      // Worktree is back and the agent's prior commit is reachable
+      await fs.access(restored.path);
+      const { stdout: log } = await execFileAsync(
+        "git",
+        ["log", "--oneline", "-n", "5"],
+        { cwd: restored.path },
+      );
+      expect(log).toContain("agent's commit");
+
+      // Worktree is fully usable again — can stage and diff
+      await fs.writeFile(path.join(restored.path, "fix.txt"), "fix\n");
+      const files = await listChangedFiles(restored);
+      expect(files).toContain("fix.txt");
+    });
+
+    it("throws a clear error when the branch no longer exists locally", async () => {
+      const handle = await createWorktree({ repoRoot: repoPath, runId });
+
+      // Remove the worktree AND delete the branch (simulates a more aggressive
+      // cleanup than push does today, but we want a clear failure mode).
+      await removeWorktree(repoPath, handle, { deleteBranch: true });
+
+      await expect(restoreWorktree(repoPath, handle)).rejects.toThrow();
     });
   });
 });

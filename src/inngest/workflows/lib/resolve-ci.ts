@@ -21,7 +21,7 @@ import type {
   ExecuteResult,
   FailureContext,
 } from "../../../stages/execute/execute.schema.js";
-import type { WorktreeHandle } from "../../../stages/execute/worktree.js";
+import { restoreWorktree, type WorktreeHandle } from "../../../stages/execute/worktree.js";
 import type { IntakeArtifact } from "../../../stages/intake/intake.schema.js";
 import type { PlanArtifact } from "../../../stages/plan/plan.schema.js";
 import { runPush } from "../../../stages/push/push.js";
@@ -155,12 +155,18 @@ export async function resolveCIWithAutoFix(
       previousFinalSummary: currentExecute.finalSummary,
     };
 
-    // 3. Re-execute in fix-mode reusing the worktree (re-create if removed by push cleanup)
-    const handle: WorktreeHandle = {
-      path: currentExecute.worktreePath,
-      branch: currentExecute.branch,
-      baseSha: currentExecute.baseSha,
-    };
+    // 3. Restore the worktree (push removed the directory but kept the branch)
+    //    and re-execute in fix-mode reusing it.
+    const handle: WorktreeHandle = await step.run(
+      `restore-worktree-attempt-${attempt + 1}`,
+      async () => {
+        return restoreWorktree(repoRoot, {
+          path: currentExecute.worktreePath,
+          branch: currentExecute.branch,
+          baseSha: currentExecute.baseSha,
+        });
+      },
+    );
 
     const fixExecute: ExecuteResult = await step.run(
       `execute-fix-ci-attempt-${attempt + 1}`,
