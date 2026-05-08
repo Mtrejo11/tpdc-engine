@@ -11,6 +11,7 @@
  * See DECISIONS.md §D4 for the v2 scope boundary.
  */
 
+import { runIntake } from "../../stages/intake/intake.js";
 import { inngest } from "../client.js";
 
 export const shipFeature = inngest.createFunction(
@@ -27,14 +28,43 @@ export const shipFeature = inngest.createFunction(
     });
 
     // ── Stage 1: Intake ──────────────────────────────────────────────
-    // TODO: real intake skill that produces a structured ticket.
+    // Convert the raw request into a structured IntakeArtifact.
+    // Sonnet 4.6 + structured outputs (Zod schema enforced server-side).
     const intake = await step.run("intake", async () => {
-      return {
+      return await runIntake({
         runId: event.data.runId,
-        ticket: { problem: event.data.request },
-        stage: "intake-stub",
-      };
+        request: event.data.request,
+      });
     });
+
+    logger.info("Intake complete", {
+      runId: event.data.runId,
+      readiness: intake.artifact.readiness,
+      acCount: intake.artifact.acceptanceCriteria.length,
+      openQuestions: intake.artifact.openQuestions.length,
+      tokensIn: intake.usage.inputTokens,
+      tokensOut: intake.usage.outputTokens,
+    });
+
+    // Gate: if intake says not_ready or has blocking open questions, halt.
+    if (intake.artifact.readiness === "not_ready") {
+      return {
+        status: "blocked" as const,
+        reason: "intake reported not_ready",
+        runId: event.data.runId,
+        intake: intake.artifact,
+      };
+    }
+    const blocking = intake.artifact.openQuestions.filter((q) => q.blocking);
+    if (intake.artifact.readiness === "needs_input" && blocking.length > 0) {
+      return {
+        status: "needs_input" as const,
+        reason: `intake has ${blocking.length} blocking open question(s)`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        blockingQuestions: blocking,
+      };
+    }
 
     // TODO: plan, execute (worktree), run-tests, push, open-PR
     // TODO: step.waitForEvent("tpdc/ci.completed", ...)
@@ -43,7 +73,7 @@ export const shipFeature = inngest.createFunction(
     return {
       status: "stub" as const,
       runId: event.data.runId,
-      intake,
+      intake: intake.artifact,
     };
   },
 );
