@@ -8,6 +8,25 @@
  */
 
 import type { PlanArtifact } from "../plan/plan.schema.js";
+import type { WorktreeHandle } from "./worktree.js";
+
+/**
+ * Context passed to a fix-mode execute run when the previous attempt's
+ * tests failed. Built by the auto-fix loop (resolve-tests.ts).
+ */
+export interface FailureContext {
+  /** 1-indexed retry attempt number. */
+  attempt: number;
+  /** Failed test commands with their output. Errored entries also included. */
+  previousCommands: Array<{
+    command: string;
+    exitCode: number;
+    stdout: string;
+    stderr: string;
+  }>;
+  /** Final text summary from the previous execute (if any). */
+  previousFinalSummary?: string;
+}
 
 export interface ExecuteRequest {
   runId: string;
@@ -24,6 +43,17 @@ export interface ExecuteRequest {
    * final state. If omitted, derived from `intakeTitle + runId`.
    */
   commitMessage?: string;
+  /**
+   * Reuse an existing worktree (e.g., for fix retries) instead of
+   * creating a new one. When set, createWorktree is skipped.
+   */
+  existingWorktree?: WorktreeHandle;
+  /**
+   * When set, the executor enters fix-mode: the user input includes the
+   * failing test commands + previous summary, and the system prompt is
+   * augmented to focus on minimum-fix not re-implement.
+   */
+  failureContext?: FailureContext;
 }
 
 export type ExecuteStatus =

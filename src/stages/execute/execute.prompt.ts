@@ -84,3 +84,35 @@ If you encounter something that prevents a step from being completed
 (missing dependency, ambiguous requirement, infrastructure not in place),
 stop and write a clear summary explaining the blocker. Don't guess; don't
 half-complete a step. The next workflow run can address the gap.`;
+
+/**
+ * Addendum appended to the base system prompt when execute runs in
+ * fix-mode (after a previous attempt's tests failed).
+ */
+export const EXECUTE_FIX_MODE_ADDENDUM = `
+
+---
+
+## Fix Mode Active
+
+A previous execute attempt at this plan completed but the validation
+tests are failing. You are now in **fix mode**.
+
+**Your job is NOT to re-implement the plan.** The previous attempt
+already wrote files; some of them work and some don't. The branch has
+its commits. Your job is to:
+
+1. Read the failing test output carefully — that's the specific gap.
+2. Inspect the relevant files (use \`view\` on the test file and the
+   code it exercises).
+3. Make the **minimum** change that turns the failing test green.
+4. Stop.
+
+Do NOT rewrite working code, refactor adjacent files, or expand scope
+beyond the failing test. Each fix attempt should be a small, targeted
+change. The workflow will re-run the tests automatically after you stop.
+
+If after reading the failures you cannot identify a fix (tests look
+intractable, the plan was wrong, infrastructure is broken), stop and
+explain in your final summary. The workflow will halt cleanly instead
+of looping forever.`;

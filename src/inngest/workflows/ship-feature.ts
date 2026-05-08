@@ -16,9 +16,9 @@ import { runExecute } from "../../stages/execute/execute.js";
 import { runOpenPR } from "../../stages/open-pr/open-pr.js";
 import { runPlan } from "../../stages/plan/plan.js";
 import { runPush } from "../../stages/push/push.js";
-import { runTests } from "../../stages/run-tests/run-tests.js";
 import { inngest } from "../client.js";
 import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
+import { resolveTestsWithAutoFix } from "./lib/resolve-tests.js";
 
 export const shipFeature = inngest.createFunction(
   {
@@ -150,40 +150,50 @@ export const shipFeature = inngest.createFunction(
       };
     }
 
-    // ── Stage 4: Run tests (validation) ──────────────────────────────
-    // Execute plan.testCommands one by one in the worktree. all_passed is
-    // required to proceed; some_failed/errored/no_commands halt cleanly so
-    // a human (or stage 8's auto-fix-CI loop) can investigate.
-    const tests = await step.run("run-tests", async () => {
-      return await runTests({
-        runId: event.data.runId,
-        worktreePath: execute.worktreePath,
-        commands: plan.artifact.testCommands,
-      });
-    });
-
-    logger.info("Run-tests complete", {
+    // ── Stage 4 + 8: Run tests with auto-fix loop ───────────────────
+    // Run plan.testCommands. If they fail, dispatch a fix-mode execute
+    // with the failure output, retry, up to maxRetries (default 3).
+    // Each attempt is its own Inngest step.run for visibility.
+    // See DECISIONS.md "evaluator-optimizer pattern".
+    const testsResolved = await resolveTestsWithAutoFix({
+      step,
       runId: event.data.runId,
-      status: tests.status,
-      ...tests.summary,
-      totalDurationMs: tests.totalDurationMs,
+      intake: intake.artifact,
+      plan: plan.artifact,
+      initialExecute: execute,
+      repoRoot: event.data.repoRoot,
     });
 
-    if (tests.status !== "all_passed") {
+    logger.info("Tests resolved", {
+      runId: event.data.runId,
+      kind: testsResolved.kind,
+      attempts: testsResolved.attempts,
+      tokensIn: testsResolved.totalUsage.inputTokens,
+      tokensOut: testsResolved.totalUsage.outputTokens,
+    });
+
+    if (testsResolved.kind === "halted") {
+      const reasonContains = testsResolved.reason.toLowerCase();
+      const isInfra =
+        reasonContains.includes("no testcommands") ||
+        reasonContains.includes("errored") ||
+        reasonContains.includes("appears stuck");
       return {
-        status: tests.status === "no_commands" ? ("blocked" as const) : ("failed" as const),
+        status: isInfra ? ("blocked" as const) : ("failed" as const),
         stage: "run-tests" as const,
-        reason:
-          tests.status === "no_commands"
-            ? "plan produced no testCommands; cannot validate programmatically"
-            : `run-tests status: ${tests.status} (${tests.summary.failed} failed, ${tests.summary.errored} errored)`,
+        reason: testsResolved.reason,
         runId: event.data.runId,
         intake: intake.artifact,
         plan: plan.artifact,
-        execute,
-        tests,
+        execute: testsResolved.finalExecute,
+        tests: testsResolved.finalTests,
+        attempts: testsResolved.attempts,
       };
     }
+
+    // Tests passed. Use the final execute (which may be a fix-mode commit).
+    const finalExecute = testsResolved.finalExecute;
+    const tests = testsResolved.finalTests;
 
     // ── Stage 5: Push branch to remote + cleanup worktree ────────────
     // git push -u origin <branch>. On success, the worktree directory is
@@ -192,8 +202,8 @@ export const shipFeature = inngest.createFunction(
       return await runPush({
         runId: event.data.runId,
         repoRoot: event.data.repoRoot,
-        worktreePath: execute.worktreePath,
-        branch: execute.branch,
+        worktreePath: finalExecute.worktreePath,
+        branch: finalExecute.branch,
       });
     });
 
@@ -213,7 +223,7 @@ export const shipFeature = inngest.createFunction(
         runId: event.data.runId,
         intake: intake.artifact,
         plan: plan.artifact,
-        execute,
+        execute: finalExecute,
         tests,
         push,
       };
@@ -228,7 +238,7 @@ export const shipFeature = inngest.createFunction(
         branch: push.branch,
         intake: intake.artifact,
         plan: plan.artifact,
-        execute,
+        execute: finalExecute,
         tests,
       });
     });
@@ -249,7 +259,7 @@ export const shipFeature = inngest.createFunction(
         runId: event.data.runId,
         intake: intake.artifact,
         plan: plan.artifact,
-        execute,
+        execute: finalExecute,
         tests,
         push,
         openPR,
@@ -257,7 +267,7 @@ export const shipFeature = inngest.createFunction(
     }
 
     // TODO: step.waitForEvent("tpdc/ci.completed", ...)  — stage 7
-    // TODO: auto-fix-CI loop (evaluator-optimizer pattern) — stage 8
+    // TODO: auto-fix-CI loop applied to remote CI failures — extension of stage 8
 
     return {
       status: "completed" as const,
@@ -265,7 +275,7 @@ export const shipFeature = inngest.createFunction(
       runId: event.data.runId,
       intake: intake.artifact,
       plan: plan.artifact,
-      execute,
+      execute: finalExecute,
       tests,
       push,
       openPR,
