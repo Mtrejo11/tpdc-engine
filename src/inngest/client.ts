@@ -11,11 +11,18 @@
  */
 
 import { EventSchemas, Inngest } from "inngest";
-import type { CiCompleted, FeatureRequested } from "../schemas/events.js";
+import type {
+  CiCompleted,
+  FeatureRequested,
+  IntakeUnblockRequested,
+  IntakeUnblocked,
+} from "../schemas/events.js";
 
 export type TpdcEvents = {
   "tpdc/feature.requested": { data: FeatureRequested };
   "tpdc/ci.completed": { data: CiCompleted };
+  "tpdc/intake.unblock_requested": { data: IntakeUnblockRequested };
+  "tpdc/intake.unblocked": { data: IntakeUnblocked };
 };
 
 export const inngest = new Inngest({

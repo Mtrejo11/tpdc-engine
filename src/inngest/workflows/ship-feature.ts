@@ -2,18 +2,19 @@
  * The "ship a feature" workflow — TPDC v2's main pipeline.
  *
  * Stages (placeholders; bodies fill in as each stage lands):
- *   intake → plan → execute (worktree) → run-tests → push → open-PR
- *   → wait-CI → auto-fix-CI → done (PR open + CI green)
+ *   intake (with unblock loop) → plan → execute (worktree) → run-tests
+ *   → push → open-PR → wait-CI → auto-fix-CI → done (PR open + CI green)
  *
  * Hibernates at:
- *   - step.waitForEvent("tpdc/ci.completed", ...) after PR open
+ *   - step.waitForEvent("tpdc/intake.unblocked", ...) inside resolveIntakeWithUnblock
+ *   - step.waitForEvent("tpdc/ci.completed", ...) after PR open (TODO)
  *
  * See DECISIONS.md §D4 for the v2 scope boundary.
  */
 
-import { runIntake } from "../../stages/intake/intake.js";
 import { runPlan } from "../../stages/plan/plan.js";
 import { inngest } from "../client.js";
+import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
 
 export const shipFeature = inngest.createFunction(
   {
@@ -28,46 +29,40 @@ export const shipFeature = inngest.createFunction(
       request: event.data.request.slice(0, 80),
     });
 
-    // ── Stage 1: Intake ──────────────────────────────────────────────
-    // Convert the raw request into a structured IntakeArtifact.
-    // Sonnet 4.6 + structured outputs (Zod schema enforced server-side).
-    const intake = await step.run("intake", async () => {
-      return await runIntake({
-        runId: event.data.runId,
-        request: event.data.request,
-      });
-    });
-
-    logger.info("Intake complete", {
+    // ── Stage 1: Intake (with unblock loop) ──────────────────────────
+    // Inside this helper: run intake → if needs_input, emit unblock_requested,
+    // hibernate on waitForEvent for unblocked, augment & retry. Up to 3 attempts.
+    const intake = await resolveIntakeWithUnblock({
+      step,
       runId: event.data.runId,
-      readiness: intake.artifact.readiness,
-      acCount: intake.artifact.acceptanceCriteria.length,
-      openQuestions: intake.artifact.openQuestions.length,
-      tokensIn: intake.usage.inputTokens,
-      tokensOut: intake.usage.outputTokens,
+      request: event.data.request,
     });
 
-    // Gate: if intake says not_ready or has blocking open questions, halt.
-    if (intake.artifact.readiness === "not_ready") {
+    if (intake.kind === "halted") {
+      logger.info("Intake halted", {
+        runId: event.data.runId,
+        reason: intake.reason,
+        attempts: intake.attempts,
+      });
       return {
         status: "blocked" as const,
         stage: "intake" as const,
-        reason: "intake reported not_ready",
+        reason: intake.reason,
         runId: event.data.runId,
-        intake: intake.artifact,
+        intake: intake.lastArtifact,
+        attempts: intake.attempts,
+        usage: intake.totalUsage,
       };
     }
-    const blocking = intake.artifact.openQuestions.filter((q) => q.blocking);
-    if (intake.artifact.readiness === "needs_input" && blocking.length > 0) {
-      return {
-        status: "needs_input" as const,
-        stage: "intake" as const,
-        reason: `intake has ${blocking.length} blocking open question(s)`,
-        runId: event.data.runId,
-        intake: intake.artifact,
-        blockingQuestions: blocking,
-      };
-    }
+
+    logger.info("Intake resolved", {
+      runId: event.data.runId,
+      readiness: intake.artifact.readiness,
+      acCount: intake.artifact.acceptanceCriteria.length,
+      attempts: intake.attempts,
+      tokensIn: intake.totalUsage.inputTokens,
+      tokensOut: intake.totalUsage.outputTokens,
+    });
 
     // ── Stage 2: Plan ────────────────────────────────────────────────
     // Take the intake and produce an ordered, executable plan.
@@ -89,6 +84,8 @@ export const shipFeature = inngest.createFunction(
     });
 
     // Gate: plan must be ready and have steps to proceed.
+    // Plan unblock loop is a future enhancement (blockers have a different
+    // shape than intake openQuestions; design needs care).
     if (plan.artifact.readiness !== "ready") {
       return {
         status: plan.artifact.readiness === "not_ready" ? ("blocked" as const) : ("needs_input" as const),
