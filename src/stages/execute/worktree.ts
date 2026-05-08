@@ -76,24 +76,44 @@ export async function createWorktree(opts: CreateWorktreeOptions): Promise<Workt
 }
 
 /**
+ * Stage all changes (modifications + creates + deletes) in the worktree.
+ *
+ * Plain `git diff` does NOT include untracked files. To get a complete
+ * diff against the base SHA, we stage everything first. The worktree is
+ * ephemeral — mutating its index has no side effect on the parent repo
+ * or the user's working tree.
+ *
+ * Idempotent: safe to call multiple times.
+ */
+async function stageAll(handle: WorktreeHandle): Promise<void> {
+  await execFileAsync("git", ["add", "-A"], { cwd: handle.path });
+}
+
+/**
  * Capture the unified diff of changes in the worktree against its base commit.
- * Includes both committed and uncommitted changes.
+ * Includes both modifications to tracked files AND the full content of new
+ * files created in the worktree.
  */
 export async function captureDiff(handle: WorktreeHandle): Promise<string> {
-  // Diff against the base SHA so we capture committed changes from the worktree
-  // PLUS uncommitted changes (working tree).
-  const { stdout: committedDiff } = await execFileAsync("git", ["diff", handle.baseSha], { cwd: handle.path });
-  return committedDiff;
+  await stageAll(handle);
+  const { stdout } = await execFileAsync(
+    "git",
+    ["diff", "--cached", handle.baseSha],
+    { cwd: handle.path },
+  );
+  return stdout;
 }
 
 /**
  * List files changed in the worktree relative to its base commit.
- * Returns relative paths.
+ * Returns relative paths. Includes both modified-tracked files AND new
+ * untracked files created in the worktree.
  */
 export async function listChangedFiles(handle: WorktreeHandle): Promise<string[]> {
+  await stageAll(handle);
   const { stdout } = await execFileAsync(
     "git",
-    ["diff", "--name-only", handle.baseSha],
+    ["diff", "--cached", "--name-only", handle.baseSha],
     { cwd: handle.path },
   );
   return stdout.split("\n").filter((line) => line.length > 0);
