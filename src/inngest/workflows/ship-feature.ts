@@ -13,7 +13,9 @@
  */
 
 import { runExecute } from "../../stages/execute/execute.js";
+import { runOpenPR } from "../../stages/open-pr/open-pr.js";
 import { runPlan } from "../../stages/plan/plan.js";
+import { runPush } from "../../stages/push/push.js";
 import { runTests } from "../../stages/run-tests/run-tests.js";
 import { inngest } from "../client.js";
 import { resolveIntakeWithUnblock } from "./lib/resolve-intake.js";
@@ -183,18 +185,90 @@ export const shipFeature = inngest.createFunction(
       };
     }
 
-    // TODO: push, open-PR
-    // TODO: step.waitForEvent("tpdc/ci.completed", ...)
-    // TODO: auto-fix-CI loop (evaluator-optimizer pattern)
+    // ── Stage 5: Push branch to remote + cleanup worktree ────────────
+    // git push -u origin <branch>. On success, the worktree directory is
+    // removed (branch ref stays for stage 8 auto-fix-CI re-creation).
+    const push = await step.run("push", async () => {
+      return await runPush({
+        runId: event.data.runId,
+        repoRoot: event.data.repoRoot,
+        worktreePath: execute.worktreePath,
+        branch: execute.branch,
+      });
+    });
+
+    logger.info("Push complete", {
+      runId: event.data.runId,
+      status: push.status,
+      branch: push.branch,
+      worktreeRemoved: push.worktreeRemoved,
+      durationMs: push.durationMs,
+    });
+
+    if (push.status !== "pushed") {
+      return {
+        status: push.status === "errored" ? ("failed" as const) : ("blocked" as const),
+        stage: "push" as const,
+        reason: `push status: ${push.status}${push.stderr ? ` — ${push.stderr.slice(0, 200)}` : ""}`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute,
+        tests,
+        push,
+      };
+    }
+
+    // ── Stage 6: Open PR via gh CLI ──────────────────────────────────
+    // Title from intake.title; body rendered from intake + plan + execute + tests.
+    const openPR = await step.run("open-pr", async () => {
+      return await runOpenPR({
+        runId: event.data.runId,
+        repoRoot: event.data.repoRoot,
+        branch: push.branch,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute,
+        tests,
+      });
+    });
+
+    logger.info("Open-PR complete", {
+      runId: event.data.runId,
+      status: openPR.status,
+      prNumber: openPR.prNumber,
+      prUrl: openPR.prUrl,
+      durationMs: openPR.durationMs,
+    });
+
+    if (openPR.status !== "opened") {
+      return {
+        status: openPR.status === "errored" ? ("failed" as const) : ("blocked" as const),
+        stage: "open-pr" as const,
+        reason: `open-pr status: ${openPR.status}${openPR.errorMessage ? ` — ${openPR.errorMessage}` : ""}`,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute,
+        tests,
+        push,
+        openPR,
+      };
+    }
+
+    // TODO: step.waitForEvent("tpdc/ci.completed", ...)  — stage 7
+    // TODO: auto-fix-CI loop (evaluator-optimizer pattern) — stage 8
 
     return {
-      status: "stub" as const,
-      stage: "post-tests" as const,
+      status: "completed" as const,
+      stage: "pr-opened" as const,
       runId: event.data.runId,
       intake: intake.artifact,
       plan: plan.artifact,
       execute,
       tests,
+      push,
+      openPR,
     };
   },
 );
