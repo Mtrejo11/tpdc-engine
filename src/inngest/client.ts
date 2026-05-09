@@ -13,6 +13,7 @@
 import { EventSchemas, Inngest } from "inngest";
 import type {
   CiCompleted,
+  ExecuteToolCall,
   FeatureRequested,
   IntakeUnblockRequested,
   IntakeUnblocked,
@@ -27,6 +28,7 @@ export type TpdcEvents = {
   "tpdc/intake.unblocked": { data: IntakeUnblocked };
   "tpdc/plan.unblock_requested": { data: PlanUnblockRequested };
   "tpdc/plan.unblocked": { data: PlanUnblocked };
+  "tpdc/execute.tool_call": { data: ExecuteToolCall };
 };
 
 export const inngest = new Inngest({

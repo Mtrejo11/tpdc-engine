@@ -229,4 +229,60 @@ describe("renderPRBody", () => {
     const body = renderPRBody({ runId: "r", intake, plan: highRisk, execute, tests: passingTests });
     expect(body).toContain("**Risk:** high");
   });
+
+  describe("WIP path (TPDC bug #4: agent halted at max_turns)", () => {
+    it("renders a warning at the top when wipReason is set", () => {
+      const body = renderPRBody({
+        runId: "r",
+        intake,
+        plan,
+        execute,
+        wipReason: "agent halted at max_turns (60 turns / 80 tool calls)",
+      });
+      // Warning appears before Summary in the body. The warning starts with
+      // a markdown blockquote `> ` so the ⚠️ char is at index 2, not 0.
+      expect(body.startsWith("> ⚠️ **Work in progress")).toBe(true);
+      expect(body).toContain("60 turns / 80 tool calls");
+      const warningIdx = body.indexOf("⚠️");
+      const summaryIdx = body.indexOf("## Summary");
+      expect(warningIdx).toBeLessThan(summaryIdx);
+    });
+
+    it("omits the WIP warning when wipReason is unset (normal path)", () => {
+      const body = renderPRBody({
+        runId: "r",
+        intake,
+        plan,
+        execute,
+        tests: passingTests,
+      });
+      expect(body).not.toContain("Work in progress");
+    });
+
+    it("Validation section says skipped when WIP without tests", () => {
+      const body = renderPRBody({
+        runId: "r",
+        intake,
+        plan,
+        execute,
+        wipReason: "agent halted at max_turns",
+      });
+      expect(body).toContain("## Validation");
+      expect(body).toContain("Skipped — agent halted");
+      // Test results section should NOT render
+      expect(body).not.toContain("### Test Results");
+    });
+
+    it("renders normally with tests + no wipReason", () => {
+      const body = renderPRBody({
+        runId: "r",
+        intake,
+        plan,
+        execute,
+        tests: passingTests,
+      });
+      expect(body).toContain("### Test Results");
+      expect(body).not.toContain("Skipped");
+    });
+  });
 });

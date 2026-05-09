@@ -45,6 +45,7 @@ export async function runOpenPR(
     plan: req.plan,
     execute: req.execute,
     tests: req.tests,
+    wipReason: req.wipReason,
   };
   const title = renderPRTitle(ctx);
   const body = renderPRBody(ctx);

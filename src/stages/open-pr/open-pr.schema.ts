@@ -22,9 +22,16 @@ export interface OpenPRRequest {
   intake: IntakeArtifact;
   plan: PlanArtifact;
   execute: ExecuteResult;
-  tests: RunTestsResult;
+  /** Test results. Omit on WIP paths (agent halted with partial work). */
+  tests?: RunTestsResult;
   /** Open as draft. Default false. */
   draft?: boolean;
+  /**
+   * If set, the PR body renders a WIP warning at the top with this reason.
+   * Used when the agent halted mid-execution but produced a coherent partial
+   * change (TPDC bug #4 from dogfooding ronda 1).
+   */
+  wipReason?: string;
   /** Per-command timeout. Default 60s. */
   timeoutMs?: number;
 }

@@ -230,4 +230,30 @@ describe("runOpenPR", () => {
     expect(result.body).toContain("Add endpoint");
     expect(result.body).toContain("✅"); // passed test icon
   });
+
+  it("renders WIP warning in body when wipReason is provided (TPDC bug #4)", async () => {
+    const execFileMock = vi.fn().mockResolvedValue({
+      stdout: "https://github.com/acme/app/pull/1\n",
+      stderr: "",
+    });
+
+    const result = await runOpenPR(
+      {
+        ...baseReq,
+        tests: undefined, // no tests on WIP path
+        draft: true,
+        wipReason: "agent halted at max_turns (60 turns / 80 tool calls)",
+      },
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      { execFileImpl: execFileMock as any },
+    );
+
+    expect(result.status).toBe("opened");
+    expect(result.body).toContain("Work in progress");
+    expect(result.body).toContain("60 turns / 80 tool calls");
+    expect(result.body).toContain("Skipped — agent halted");
+    // gh was called with --draft
+    const args = execFileMock.mock.calls[0]?.[1];
+    expect(args).toContain("--draft");
+  });
 });

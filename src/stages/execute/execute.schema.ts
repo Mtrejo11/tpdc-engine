@@ -36,7 +36,7 @@ export interface ExecuteRequest {
   repoRoot: string;
   /** Override model. Defaults to Sonnet 4.6. */
   model?: string;
-  /** Cap on agent loop turns. Default 30. */
+  /** Cap on agent loop turns. Default 60. */
   maxTurns?: number;
   /**
    * Override commit message used when the workflow commits the agent's

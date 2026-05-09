@@ -96,3 +96,25 @@ export const PlanUnblockedSchema = z.object({
   resolutions: z.array(PlanResolutionSchema).min(1),
 });
 export type PlanUnblocked = z.infer<typeof PlanUnblockedSchema>;
+
+/**
+ * Mid-flight observability for the execute agent loop (TPDC bug #3 from
+ * dogfooding ronda 1). Emitted once per tool invocation so the user can
+ * watch progress in the Inngest UI without polling the worktree filesystem.
+ */
+export const ExecuteToolCallSchema = z.object({
+  runId: z.string(),
+  /** 1-indexed turn within the agent loop. */
+  turn: z.number().int().min(1),
+  /** Tool name (e.g., "bash", "str_replace_based_edit_tool"). */
+  toolName: z.string(),
+  /**
+   * Truncated preview of the tool input (first ~200 chars). Lets a human
+   * see *what* the agent is doing without dumping full file contents into
+   * the event stream.
+   */
+  toolInputPreview: z.string(),
+  /** Mode the execute is running in. "initial" by default, "fix" for retries. */
+  phase: z.enum(["initial", "fix"]).default("initial"),
+});
+export type ExecuteToolCall = z.infer<typeof ExecuteToolCallSchema>;

@@ -23,7 +23,14 @@ export interface BodyContext {
   intake: IntakeArtifact;
   plan: PlanArtifact;
   execute: ExecuteResult;
-  tests: RunTestsResult;
+  /** Test results. Omit for WIP paths (e.g., max_turns_exceeded with partial work). */
+  tests?: RunTestsResult;
+  /**
+   * If set, the PR is incomplete and a warning is rendered at the top.
+   * Used when the agent halted mid-execution but produced a coherent partial
+   * change worth human review (TPDC bug #4 from dogfooding ronda 1).
+   */
+  wipReason?: string;
 }
 
 const TPDC_FOOTER_MARKER = "<!-- generated-by-tpdc-v2 -->";
@@ -31,6 +38,7 @@ const TPDC_FOOTER_MARKER = "<!-- generated-by-tpdc-v2 -->";
 export function renderPRBody(ctx: BodyContext): string {
   const sections: string[] = [];
 
+  if (ctx.wipReason) sections.push(renderWipWarning(ctx));
   sections.push(renderSummary(ctx));
   sections.push(renderAcceptanceCriteria(ctx));
   sections.push(renderPlan(ctx));
@@ -97,6 +105,17 @@ function renderPlan(ctx: BodyContext): string {
   return lines.join("\n").trimEnd();
 }
 
+function renderWipWarning(ctx: BodyContext): string {
+  return [
+    "> ⚠️ **Work in progress — agent halted before finishing.**",
+    `> Reason: ${ctx.wipReason}`,
+    ">",
+    "> The pipeline did not run validation tests on this branch and the",
+    "> change may be incomplete. Review carefully before merging or",
+    "> updating the branch manually.",
+  ].join("\n");
+}
+
 function renderValidation(ctx: BodyContext): string {
   const lines = [
     "## Validation",
@@ -105,8 +124,12 @@ function renderValidation(ctx: BodyContext): string {
     "",
   ];
 
-  if (ctx.tests.results.length === 0) {
-    lines.push("_No automated validation commands were run._");
+  if (!ctx.tests || ctx.tests.results.length === 0) {
+    lines.push(
+      ctx.wipReason
+        ? "_Skipped — agent halted before completion (see warning above)._"
+        : "_No automated validation commands were run._",
+    );
     return lines.join("\n").trimEnd();
   }
 

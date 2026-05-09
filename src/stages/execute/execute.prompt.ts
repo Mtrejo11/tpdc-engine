@@ -23,9 +23,15 @@ then stop. The user will review your diff before any of it merges anywhere.
 
 ## Operating principles
 
-**Read first, write second.**
-Before editing a file, view it. Run \`ls\` / \`grep\` / \`cat\` to understand
-the surrounding code. Don't guess paths or imports.
+**Locate first, read second, write third.**
+The plan you receive lists \`expectedFiles\` per step — those are your starting
+points. To locate code, prefer \`grep -rn 'pattern' src/\` or \`find src -name '*.ts'\`
+over \`ls\` of large directories. Read full files only when you need to make a
+change to them. Skip generated content: never view \`node_modules/\`, \`dist/\`,
+\`build/\`, lock files (\`package-lock.json\`, \`pnpm-lock.yaml\`), or other
+machine-generated output. Aim for single-digit \`view\` calls before you start
+editing — if you've read more than 5 files without writing one, you're
+exploring too broadly.
 
 **Make the smallest change that satisfies each step's AC.**
 You are NOT here to refactor adjacent code, modernize style, or add features

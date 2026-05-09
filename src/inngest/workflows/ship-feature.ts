@@ -132,6 +132,21 @@ export const shipFeature = inngest.createFunction(
         intakeTitle: intake.artifact.title,
         plan: plan.artifact,
         repoRoot: event.data.repoRoot,
+        // Mid-flight observability: emit one event per tool invocation
+        // so progress is visible in Inngest UI without polling the
+        // worktree filesystem (TPDC bug #3 from dogfooding ronda 1).
+        onToolCall: async (e) => {
+          await inngest.send({
+            name: "tpdc/execute.tool_call",
+            data: {
+              runId: event.data.runId,
+              turn: e.turn,
+              toolName: e.toolName,
+              toolInputPreview: e.toolInputPreview,
+              phase: "initial",
+            },
+          });
+        },
       });
     });
 
@@ -143,9 +158,21 @@ export const shipFeature = inngest.createFunction(
       toolCalls: execute.toolCallCount,
       tokensIn: execute.usage.inputTokens,
       tokensOut: execute.usage.outputTokens,
+      finalSummary: execute.finalSummary?.slice(0, 500),
     });
 
-    if (execute.status !== "completed" && execute.status !== "no_changes") {
+    // WIP recovery path: agent ran out of turns but produced a coherent partial
+    // change worth human review. Skip tests + CI auto-fix (the work is incomplete
+    // by definition; running validation would just generate noise) and go straight
+    // to push + draft PR with a visible warning. (TPDC bug #4 from dogfooding.)
+    const isWipPath =
+      execute.status === "max_turns_exceeded" && execute.commitSha !== undefined;
+
+    if (
+      execute.status !== "completed" &&
+      execute.status !== "no_changes" &&
+      !isWipPath
+    ) {
       return {
         status: "blocked" as const,
         stage: "execute" as const,
@@ -162,45 +189,53 @@ export const shipFeature = inngest.createFunction(
     // with the failure output, retry, up to maxRetries (default 3).
     // Each attempt is its own Inngest step.run for visibility.
     // See DECISIONS.md "evaluator-optimizer pattern".
-    const testsResolved = await resolveTestsWithAutoFix({
-      step,
-      runId: event.data.runId,
-      intake: intake.artifact,
-      plan: plan.artifact,
-      initialExecute: execute,
-      repoRoot: event.data.repoRoot,
-    });
+    //
+    // Skipped on WIP path — tests against incomplete work are meaningless.
+    let finalExecute = execute;
+    let tests: import("../../stages/run-tests/run-tests.schema.js").RunTestsResult | undefined;
 
-    logger.info("Tests resolved", {
-      runId: event.data.runId,
-      kind: testsResolved.kind,
-      attempts: testsResolved.attempts,
-      tokensIn: testsResolved.totalUsage.inputTokens,
-      tokensOut: testsResolved.totalUsage.outputTokens,
-    });
-
-    if (testsResolved.kind === "halted") {
-      const reasonContains = testsResolved.reason.toLowerCase();
-      const isInfra =
-        reasonContains.includes("no testcommands") ||
-        reasonContains.includes("errored") ||
-        reasonContains.includes("appears stuck");
-      return {
-        status: isInfra ? ("blocked" as const) : ("failed" as const),
-        stage: "run-tests" as const,
-        reason: testsResolved.reason,
+    if (!isWipPath) {
+      const testsResolved = await resolveTestsWithAutoFix({
+        step,
         runId: event.data.runId,
         intake: intake.artifact,
         plan: plan.artifact,
-        execute: testsResolved.finalExecute,
-        tests: testsResolved.finalTests,
-        attempts: testsResolved.attempts,
-      };
-    }
+        initialExecute: execute,
+        repoRoot: event.data.repoRoot,
+      });
 
-    // Tests passed. Use the final execute (which may be a fix-mode commit).
-    const finalExecute = testsResolved.finalExecute;
-    const tests = testsResolved.finalTests;
+      logger.info("Tests resolved", {
+        runId: event.data.runId,
+        kind: testsResolved.kind,
+        attempts: testsResolved.attempts,
+        tokensIn: testsResolved.totalUsage.inputTokens,
+        tokensOut: testsResolved.totalUsage.outputTokens,
+      });
+
+      if (testsResolved.kind === "halted") {
+        const reasonContains = testsResolved.reason.toLowerCase();
+        const isInfra =
+          reasonContains.includes("no testcommands") ||
+          reasonContains.includes("errored") ||
+          reasonContains.includes("appears stuck");
+        return {
+          status: isInfra ? ("blocked" as const) : ("failed" as const),
+          stage: "run-tests" as const,
+          reason: testsResolved.reason,
+          runId: event.data.runId,
+          intake: intake.artifact,
+          plan: plan.artifact,
+          execute: testsResolved.finalExecute,
+          tests: testsResolved.finalTests,
+          attempts: testsResolved.attempts,
+          finalSummary: testsResolved.finalExecute.finalSummary?.slice(0, 500),
+        };
+      }
+
+      // Tests passed. Use the final execute (which may be a fix-mode commit).
+      finalExecute = testsResolved.finalExecute;
+      tests = testsResolved.finalTests;
+    }
 
     // ── Stage 5: Push branch to remote + cleanup worktree ────────────
     // git push -u origin <branch>. On success, the worktree directory is
@@ -253,6 +288,12 @@ export const shipFeature = inngest.createFunction(
         plan: plan.artifact,
         execute: finalExecute,
         tests,
+        // On WIP path: open as draft with a visible warning so the human knows
+        // the change is incomplete and validation was skipped.
+        draft: isWipPath,
+        wipReason: isWipPath
+          ? `Agent halted at max_turns (${finalExecute.turnCount} turns / ${finalExecute.toolCallCount} tool calls)`
+          : undefined,
       });
     });
 
@@ -276,6 +317,23 @@ export const shipFeature = inngest.createFunction(
         tests,
         push,
         openPR,
+      };
+    }
+
+    // WIP path early return: the draft PR is the final outcome. CI auto-fix
+    // would just churn against partial work — let the human take over.
+    if (isWipPath) {
+      return {
+        status: "completed" as const,
+        stage: "wip-pr-opened" as const,
+        runId: event.data.runId,
+        intake: intake.artifact,
+        plan: plan.artifact,
+        execute: finalExecute,
+        push,
+        openPR,
+        wipReason: `agent halted at max_turns (${finalExecute.turnCount} turns / ${finalExecute.toolCallCount} tool calls)`,
+        finalSummary: finalExecute.finalSummary?.slice(0, 500),
       };
     }
 
