@@ -1,8 +1,18 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** v0.3.0-alpha.6 (pivot in progress to Claude Code plugin + MCP server). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** v0.3.0-alpha.7 (Claude Code plugin + MCP server — feature complete end-to-end at the pipeline level). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
+
+## Quick start
+
+```
+/tpdc:ship "Add a password reset flow"
+```
+
+The `/tpdc:ship` skill walks the request through the full pipeline (intake → plan → execute → run-tests → push → open-PR → auto-fix-CI) with confirmation gates at the irreversible steps. Returns a PR URL + CI status.
+
+For partial workflows, you can invoke any sub-skill or MCP tool directly — they're all standalone.
 
 ## How it works (v0.3)
 
@@ -13,10 +23,11 @@ Each stage is either:
 - A **skill** (markdown in `skills/<stage>/SKILL.md`) — instructs Claude Code on how to do the stage using its native Read/Grep/Glob/Bash tools, with a small TPDC MCP validator at the end to check shape. Used for stages where the agent benefits from full repo context and conversational interaction (intake, plan).
 - An **MCP tool** — used for stages that need agentic-and-autonomous loops (execute, run-tests, auto-fix-CI) or parallel coordination (team-meeting). Claude Code calls them and waits.
 
-## Available now (v0.3.0-alpha.6)
+## Available now (v0.3.0-alpha.7)
 
 | Skill | What it does | Status |
 |---|---|---|
+| **`/tpdc:ship`** (via `ship/SKILL.md`) | **End-to-end pipeline.** Take a natural-language feature request → produce a PR with CI green. Orchestrates intake → plan → execute → run-tests → push → open-PR → auto-fix-CI. Two confirmation gates (after plan, after PR open) + the auto-fix-ci skill's own gates. The user-facing entry point. | ✅ available |
 | `/tpdc:intake` (via `intake/SKILL.md`) | Convert vague feature request → typed IntakeArtifact. Auto-resolves repo-derivable questions via Read/Grep/Glob. | ✅ available |
 | `/tpdc:plan` (via `plan/SKILL.md`) | Convert validated IntakeArtifact → typed PlanArtifact with ordered steps (DAG), riskLevel, testCommands. | ✅ available |
 | `/tpdc:auto-fix-ci` (via `auto-fix-ci/SKILL.md`) | After a PR is opened, wait for CI; on failure, fetch logs, run execute in fix-mode, force-push (with confirmation gates), loop up to maxRetries. Composition of wait-CI → fetch-logs → execute → push. | ✅ available |
@@ -33,14 +44,15 @@ Each stage is either:
 | `tpdc_wait_ci` | Polls `gh run list` until the most recent run for `branch` reaches a terminal state. Returns conclusion (success/failure/cancelled/...). Exponential backoff (default 5s → 30s cap, max wait 30min). Status `timeout` and `errored` (gh repeatedly failing) are valid outcomes. |
 | `tpdc_fetch_ci_logs` | `gh run view --log-failed` for the most recent run on `branch`. Returns tail-preserved log blob (default 8KB cap). Used to feed FailureContext into a fix-mode `tpdc_execute`. |
 
-## Coming next (alpha.7+)
+## Coming next (alpha.8+)
 
 | Stage | Form | Notes |
 |---|---|---|
-| Top-level "ship a feature" | Skill | Chains intake → plan → execute → run-tests → push → open-PR → auto-fix-ci. The user-facing entry point. |
-| Team-of-agents meeting (D6) | MCP tool | Parallel PM/TechLead/Designer/Engineer + Opus moderator when intake doesn't converge. |
 | Advisor tool integration | Refactor of execute | Replace manual Opus escalation with the platform's beta advisor tool (VISION.md §4). |
+| Team-of-agents meeting (D6) | MCP tool | Parallel PM/TechLead/Designer/Engineer + Opus moderator when intake doesn't converge. |
 | v1 skills cleanup | Remove deprecated | `develop`, `solve`, `discovery`, `assess`, `fix`, `refactor`, `show`, `diff` directories. |
+| **beta — dogfood-003 smoke** | Validation | Real run against `Mtrejo11/inventario-reventa` to validate the form-factor pivot end-to-end. |
+| **v0.3.0 final** | Release | After beta validates. |
 
 ## Legacy v1 skills (deprecated)
 
