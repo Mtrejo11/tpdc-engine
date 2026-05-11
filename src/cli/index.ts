@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * tpdc CLI — v2 entry point.
+ * tpdc CLI — v3 entry point.
  *
- * Skeleton. Subcommands populate as v2 stages come online.
- * See DECISIONS.md for the planned command surface.
+ * The v0.2 surface (`tpdc unblock`) is archived in `src-v2-inngest-archive/`
+ * because the new form factor (plugin/MCP per VISION.md) handles unblocks
+ * via Claude Code chat, not a CLI invocation.
+ *
+ * v0.3 subcommands are added as the MCP server lands.
  */
 
 import { VERSION } from "../index.js";
-import { runUnblock } from "./unblock.js";
 
-const [command, ...rest] = process.argv.slice(2);
+const [command] = process.argv.slice(2);
 
 main().catch((err) => {
   console.error(err instanceof Error ? err.message : String(err));
@@ -24,24 +26,18 @@ async function main(): Promise<void> {
       console.log(`tpdc v${VERSION}`);
       return;
 
-    case "unblock":
-      await runUnblock(rest);
-      return;
-
     default: {
       const lines = [
-        `tpdc v${VERSION} — autonomous dev engine`,
+        `tpdc v${VERSION} — autonomous dev engine (plugin/MCP for Claude Code)`,
         ``,
-        `v2 is in active development. Subcommand surface is being rebuilt.`,
-        `See ~/Documents/Claude/Projects/TPDC/DECISIONS.md for the v2 plan.`,
+        `v0.3 pivot in progress: TPDC now ships as a Claude Code plugin + MCP server.`,
+        `See ~/Documents/Claude/Projects/TPDC/VISION.md for the locked architecture.`,
         ``,
         `Available now:`,
         `  tpdc version              Show version`,
-        `  tpdc unblock <runId>      Answer pending intake questions, resume workflow`,
         ``,
-        `Coming in v2:`,
-        `  tpdc ship "<request>"     Run the full pipeline (intake → PR + CI green)`,
-        `  tpdc show [<runId>]       Inspect runs`,
+        `Coming in v0.3:`,
+        `  tpdc-mcp                  Start the MCP stdio server (used by Claude Code)`,
       ];
       console.log(lines.join("\n"));
       process.exit(command ? 1 : 0);

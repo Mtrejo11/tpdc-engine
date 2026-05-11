@@ -27,6 +27,7 @@
     "scripts-v1-archive",
     "tests-v1-archive",
     "fixtures-v1-archive",
-    "dist-v1-archive"
+    "dist-v1-archive",
+    "src-v2-inngest-archive"
   ]
 }
