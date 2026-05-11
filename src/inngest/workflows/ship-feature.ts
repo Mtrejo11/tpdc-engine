@@ -43,6 +43,9 @@ export const shipFeature = inngest.createFunction(
       runId: event.data.runId,
       request: event.data.request,
       maxAttempts: event.data.intakeMaxAttempts,
+      teamMeetingMode: event.data.teamMeetingMode,
+      teamMeetingNAttempts: event.data.teamMeetingNAttempts,
+      teamMeetingHybridTimeout: event.data.teamMeetingHybridTimeout,
     });
 
     if (intake.kind === "halted") {

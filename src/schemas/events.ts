@@ -12,6 +12,24 @@
 
 import { z } from "zod";
 
+import { TeamMeetingResultSchema } from "../teams/schemas.js";
+
+/**
+ * Team-meeting mode (D6). Determines whether and when the team-of-agents
+ * meeting fires during intake convergence.
+ *
+ * - "manual"  → never. Long human wait (default 1d) every attempt. Status quo.
+ * - "auto"    → fires on the FIRST needs_input attempt. Skips human entirely.
+ *               If meeting `escalateToHuman` or cap hit, falls back to long human wait.
+ * - "hybrid"  → attempts 1..N use long human wait (1d). Attempt N+1 uses a
+ *               short wait (default 30m); on timeout, the meeting fires.
+ *               If meeting escalates or cap is hit, falls back to long wait.
+ *
+ * See `docs/team-of-agents-spec.md` §6 (modes) and §7 (integration flow).
+ */
+export const TeamMeetingModeSchema = z.enum(["manual", "auto", "hybrid"]);
+export type TeamMeetingMode = z.infer<typeof TeamMeetingModeSchema>;
+
 export const FeatureRequestedSchema = z.object({
   runId: z.string(),
   request: z.string().min(1),
@@ -29,6 +47,24 @@ export const FeatureRequestedSchema = z.object({
    * per-run basis. Same rationale as intakeMaxAttempts.
    */
   planMaxAttempts: z.number().int().min(1).max(10).optional(),
+  /**
+   * Mode for the team-of-agents meeting (D6). Default `hybrid`.
+   * See `TeamMeetingModeSchema` for semantics.
+   */
+  teamMeetingMode: TeamMeetingModeSchema.optional(),
+  /**
+   * In hybrid mode, the team meeting fires after attempt N. Default 2.
+   * For mode="auto" this is ignored (meeting fires on attempt 1).
+   * For mode="manual" this is ignored (meeting never fires).
+   * Range [1, 10] guards against pathological values.
+   */
+  teamMeetingNAttempts: z.number().int().min(1).max(10).optional(),
+  /**
+   * In hybrid mode, the short human wait before falling through to the
+   * team meeting. Inngest timeout string format ("30m", "1h", etc.).
+   * Default "30m".
+   */
+  teamMeetingHybridTimeout: z.string().optional(),
 });
 export type FeatureRequested = z.infer<typeof FeatureRequestedSchema>;
 
@@ -108,6 +144,20 @@ export const PlanUnblockedSchema = z.object({
   resolutions: z.array(PlanResolutionSchema).min(1),
 });
 export type PlanUnblocked = z.infer<typeof PlanUnblockedSchema>;
+
+/**
+ * Team meeting completion event (D6). Emitted after a team-of-agents
+ * meeting wraps, regardless of consensus/escalation outcome. Visible in
+ * Inngest UI for mid-flight inspection and audit-after-the-fact. The
+ * `result` payload carries the full `TeamMeetingResult`.
+ */
+export const TeamMeetingCompletedSchema = z.object({
+  runId: z.string(),
+  /** Which intake attempt triggered this meeting (1-indexed). */
+  attempt: z.number().int().min(1),
+  result: TeamMeetingResultSchema,
+});
+export type TeamMeetingCompleted = z.infer<typeof TeamMeetingCompletedSchema>;
 
 /**
  * Mid-flight observability for the execute agent loop (TPDC bug #3 from

@@ -19,6 +19,7 @@ import type {
   IntakeUnblocked,
   PlanUnblockRequested,
   PlanUnblocked,
+  TeamMeetingCompleted,
 } from "../schemas/events.js";
 
 export type TpdcEvents = {
@@ -29,6 +30,7 @@ export type TpdcEvents = {
   "tpdc/plan.unblock_requested": { data: PlanUnblockRequested };
   "tpdc/plan.unblocked": { data: PlanUnblocked };
   "tpdc/execute.tool_call": { data: ExecuteToolCall };
+  "tpdc/team-meeting.completed": { data: TeamMeetingCompleted };
 };
 
 export const inngest = new Inngest({
