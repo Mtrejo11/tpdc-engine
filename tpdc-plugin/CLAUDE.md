@@ -1,6 +1,6 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** v0.3.0-alpha.9 (Claude Code plugin + MCP server — pipeline complete + advisor + team-of-agents). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** v0.3.0-alpha.10 (Claude Code plugin + MCP server — feature-complete, awaiting beta validation). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
 
@@ -45,19 +45,16 @@ Each stage is either:
 | `tpdc_fetch_ci_logs` | `gh run view --log-failed` for the most recent run on `branch`. Returns tail-preserved log blob (default 8KB cap). Used to feed FailureContext into a fix-mode `tpdc_execute`. |
 | `tpdc_team_meeting` | **D6.** Convenes 2-4 role agents (PM, TechLead, Designer, Engineer) in parallel + Opus moderator synthesis. Returns synthesized answers with role provenance, assumptions to commit to, preserved dissent, consensus boolean, and optional escalateToHuman. ~$0.30 / 60-75s per meeting. Single-shot (no recursion). Use when intake/plan can't converge after 2-3 rounds, or for explicit multi-perspective deliberation. |
 
-## Coming next (alpha.10+)
+## Coming next (beta)
 
-| Stage | Form | Notes |
-|---|---|---|
-| v1 skills cleanup | Remove deprecated | `develop`, `solve`, `discovery`, `assess`, `fix`, `refactor`, `show`, `diff` directories. |
-| **beta — dogfood-003 smoke** | Validation | Real run against `Mtrejo11/inventario-reventa` to validate the form-factor pivot end-to-end. |
-| **v0.3.0 final** | Release | After beta validates. |
+| Item | Notes |
+|---|---|
+| **beta — dogfood-003 smoke** | Real run against `Mtrejo11/inventario-reventa` to validate the form-factor pivot end-to-end. Resurrect the runbook from `docs/dogfood-003-runbook.md`, adapted to the new plugin/MCP surface. |
+| **v0.3.0 final** | Release after beta validates. |
 
-## Legacy v1 skills (deprecated)
+## History
 
-The v1 skills (`develop`, `solve`, `discovery`, `assess`, `fix`, `refactor`, `show`, `diff`) live in this directory but their MCP tool references are stale. They will be cleaned up in a later alpha as the v3 surface fills out. Do not invoke them; use only the v0.3 skills listed above.
-
-(`plan/SKILL.md` has been rewritten for v3 — the v1 version is preserved in git history.)
+Legacy v1 skills (`develop`, `solve`, `discovery`, `assess`, `fix`, `refactor`, `show`, `diff`) were removed in v0.3.0-alpha.10. Their MCP tool references targeted the archived Inngest backbone and are no longer functional. Git history preserves them under the pre-alpha.10 tags if reference is needed.
 
 ## Architecture rules
 
