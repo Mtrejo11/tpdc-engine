@@ -23,7 +23,10 @@ import {
 
 import { VERSION } from "../index.js";
 import { executeTool } from "./tools/execute.js";
+import { openPRTool } from "./tools/open-pr.js";
 import { pingTool } from "./tools/ping.js";
+import { pushTool } from "./tools/push.js";
+import { runTestsTool } from "./tools/run-tests.js";
 import type { ToolDefinition } from "./tools/types.js";
 import { validateIntakeArtifactTool } from "./tools/validate-intake.js";
 import { validatePlanArtifactTool } from "./tools/validate-plan.js";
@@ -35,6 +38,9 @@ export const TOOLS: ToolDefinition[] = [
   validateIntakeArtifactTool,
   validatePlanArtifactTool,
   executeTool,
+  runTestsTool,
+  pushTool,
+  openPRTool,
 ];
 
 // ── Server wiring ────────────────────────────────────────────────────

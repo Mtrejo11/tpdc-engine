@@ -1,6 +1,6 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** v0.3.0-alpha.3 (pivot in progress to Claude Code plugin + MCP server). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** v0.3.0-alpha.4 (pivot in progress to Claude Code plugin + MCP server). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
 
@@ -13,7 +13,7 @@ Each stage is either:
 - A **skill** (markdown in `skills/<stage>/SKILL.md`) — instructs Claude Code on how to do the stage using its native Read/Grep/Glob/Bash tools, with a small TPDC MCP validator at the end to check shape. Used for stages where the agent benefits from full repo context and conversational interaction (intake, plan).
 - An **MCP tool** — used for stages that need agentic-and-autonomous loops (execute, run-tests, auto-fix-CI) or parallel coordination (team-meeting). Claude Code calls them and waits.
 
-## Available now (v0.3.0-alpha.3)
+## Available now (v0.3.0-alpha.4)
 
 | Skill | What it does | Status |
 |---|---|---|
@@ -23,17 +23,17 @@ Each stage is either:
 | MCP tool | What it does |
 |---|---|
 | `tpdc_ping` | Health check for the MCP server (plugin setup validation). |
-| `tpdc_validate_intake_artifact` | Validate a candidate IntakeArtifact against the Zod schema. Returns `{ok, artifact}` or `{ok: false, errors: [{path, message, code}]}`. |
-| `tpdc_validate_plan_artifact` | Validate a candidate PlanArtifact against the Zod schema AND semantic invariants (DAG, dependency refs, readiness/steps consistency). Same response shape. |
-| `tpdc_execute` | Heavy autonomous tool: creates a git worktree under `<repoRoot>/.tpdc/worktrees/<runId>/`, runs the agentic bash + text_editor loop against the validated plan, captures the diff, commits. Returns the full ExecuteResult JSON (status, worktreePath, branch, baseSha, commitSha, filesChanged, diff, finalSummary, usage). Accepts optional `existingWorktree` + `failureContext` for fix-mode retries. |
+| `tpdc_validate_intake_artifact` | Validate a candidate IntakeArtifact against the Zod schema. |
+| `tpdc_validate_plan_artifact` | Validate a candidate PlanArtifact against the Zod schema AND semantic invariants (DAG, dependency refs, readiness/steps consistency). |
+| `tpdc_execute` | Creates a git worktree, runs the agentic bash + text_editor loop against the validated plan, captures the diff, commits. Returns ExecuteResult JSON. Accepts `existingWorktree` + `failureContext` for fix-mode retries. |
+| `tpdc_run_tests` | Runs the plan's `testCommands` sequentially in the worktree. Returns per-command (passed/failed/errored + exit + stdout/stderr) + aggregate status. |
+| `tpdc_push` | `git push -u <remote> <branch>` from the worktree. On success, removes the worktree directory (branch ref kept). Returns status (pushed/failed/errored) + git output. Force-push-with-lease via `force=true` for auto-fix-CI. |
+| `tpdc_open_pr` | `gh pr create` with title/body rendered from intake + plan + execute + (optional) tests. Returns PR URL + number. Status `gh_missing` if gh CLI is not on PATH. Supports `draft` + `wipReason`. |
 
-## Coming next (alpha.4+)
+## Coming next (alpha.5+)
 
 | Stage | Form | Notes |
 |---|---|---|
-| Run-tests + auto-fix | MCP tool | Evaluator-optimizer over `plan.testCommands`. |
-| Push | MCP tool | `git push -u origin <branch>` + worktree cleanup. |
-| Open-PR | MCP tool | `gh pr create` with body rendered from intake + plan + diff. |
 | Wait-CI | MCP tool | Polls `gh run watch` until CI green / failed. |
 | Auto-fix-CI | MCP tool | Fetch logs + fix-mode execute + force-push + re-wait. |
 | Team-of-agents meeting (D6) | MCP tool | Parallel PM/TechLead/Designer/Engineer + Opus moderator when intake doesn't converge. |
