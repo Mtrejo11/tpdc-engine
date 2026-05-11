@@ -1,7 +1,7 @@
 ---
 name: intake
 description: Convert a vague feature request into a structured TPDC IntakeArtifact (problem statement, acceptance criteria, scope, open questions). Use when the user asks for a "TPDC intake", "structure this request", "produce an intake artifact", or as the first step in a /tpdc:ship workflow.
-allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact
+allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact, mcp__plugin_tpdc_tpdc__tpdc_team_meeting
 metadata:
   author: tpdc
   version: "0.3"
@@ -102,6 +102,28 @@ Call `mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact` with `{ artifact: <y
 - If response has `ok: false`: each `errors[i]` has `path` (e.g., `"openQuestions.0.question"`) and `message`. Fix exactly the fields named in `path`, then re-call the validator. Iterate up to 3 times.
 
 If you can't make the artifact valid after 3 iterations, surface the validation errors verbatim to the user and stop — something about the request is structurally unworkable.
+
+### 5. (Optional) Convene a team meeting on stubborn blockers
+
+If after 2-3 rounds of asking the user clarifying questions the intake still has blocking `openQuestions` that you can't resolve (the user's answers keep surfacing new ambiguity, or they explicitly ask for "what would a PM / Tech Lead / Designer think?"), you can invoke the team-of-agents meeting (D6):
+
+```
+mcp__plugin_tpdc_tpdc__tpdc_team_meeting({
+  runId: "<runId>",
+  originalRequest: "<the user's original request>",
+  intakeSoFar: <your current best-effort IntakeArtifact>,
+  openQuestions: <the still-blocking subset>,
+  rolesToConvene: ["PM", "TechLead", "Engineer", ...(Designer if UI signal)]
+})
+```
+
+The meeting takes ~60-75s and costs ~$0.30. Returns synthesized `answers` (with role provenance), `assumptions` (commit to these), preserved `dissent`, and possibly `escalateToHuman` if even the team couldn't resolve.
+
+Heuristic for Designer inclusion: include if openQuestions or intake fields mention any of: card, button, color, layout, spacing, contrast, hierarchy, typography, accessibility, ui, ux (English or Spanish equivalents).
+
+Use the meeting's output as augmentation context for one more intake attempt. If the meeting `escalateToHuman` or its assumptions still don't unblock you, halt and surface to the user.
+
+**Don't use the team meeting by default** — only when the user-Claude-Code dialogue has visibly stalled or the user explicitly asks for multi-perspective analysis. It's expensive and slower than a quick direct question.
 
 ## Anti-patterns (do NOT do these)
 

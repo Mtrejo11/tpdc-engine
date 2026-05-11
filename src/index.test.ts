@@ -3,6 +3,6 @@ import { VERSION } from "./index.js";
 
 describe("tpdc-engine v2", () => {
   it("exposes a version constant", () => {
-    expect(VERSION).toBe("0.3.0-alpha.7");
+    expect(VERSION).toBe("0.3.0-alpha.9");
   });
 });

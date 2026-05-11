@@ -28,6 +28,7 @@ import { openPRTool } from "./tools/open-pr.js";
 import { pingTool } from "./tools/ping.js";
 import { pushTool } from "./tools/push.js";
 import { runTestsTool } from "./tools/run-tests.js";
+import { teamMeetingTool } from "./tools/team-meeting.js";
 import type { ToolDefinition } from "./tools/types.js";
 import { validateIntakeArtifactTool } from "./tools/validate-intake.js";
 import { validatePlanArtifactTool } from "./tools/validate-plan.js";
@@ -45,6 +46,7 @@ export const TOOLS: ToolDefinition[] = [
   openPRTool,
   waitCITool,
   fetchCILogsTool,
+  teamMeetingTool,
 ];
 
 // ── Server wiring ────────────────────────────────────────────────────

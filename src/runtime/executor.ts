@@ -23,7 +23,13 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import type { ZodType, infer as zInfer } from "zod";
 
 export const DEFAULT_EXECUTOR_MODEL = "claude-sonnet-4-6";
-export const DEFAULT_ADVISOR_MODEL = "claude-opus-4-6";
+/**
+ * Bumped to Opus 4.7 in v0.3.0-alpha.8 to match the platform's recommended
+ * pairing for the advisor tool (`advisor-tool-2026-03-01`). Used both by
+ * the legacy `consultAdvisor` pattern (two-call escalation) and by the
+ * platform advisor tool wired into `execute.ts`.
+ */
+export const DEFAULT_ADVISOR_MODEL = "claude-opus-4-7";
 export const DEFAULT_MAX_TOKENS = 4096;
 
 export interface ExecutorRequest<S extends ZodType> {

@@ -1,12 +1,21 @@
 /**
- * Execute stage — TPDC v2.
+ * Execute stage — TPDC v0.3.
  *
  * Orchestrates the agentic execute loop:
  *   1. Create a git worktree under <repoRoot>/.tpdc/worktrees/<runId>/
- *   2. Open a tool-use loop with Sonnet 4.6 + bash + text_editor tools
- *      whose handlers operate on the worktree path
+ *   2. Open a tool-use loop with Sonnet 4.6 + bash + text_editor + advisor
+ *      tools whose handlers operate on the worktree path
  *   3. Loop until the model emits no more tool_use blocks or MAX_TURNS hit
  *   4. Capture the diff against the base commit; return ExecuteResult
+ *
+ * Platform integration (alpha.8):
+ *   - Uses `client.beta.messages.create` (with `betas: [...]` for advisor
+ *     and any future beta-flagged tools).
+ *   - Tools include the advisor (`advisor_20260301`) — the platform invokes
+ *     Opus 4.7 as a server-side sub-inference when Sonnet calls it. We do
+ *     NOT dispatch advisor tool calls client-side; the API handles them.
+ *   - Handles `stop_reason: "pause_turn"` by re-sending the assistant
+ *     content to continue an in-flight server-side tool call.
  *
  * The worktree is NOT cleaned up automatically — the workflow may want
  * to inspect it. Cleanup is the caller's responsibility (or stage 5: push).
@@ -14,12 +23,15 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import type {
-  MessageParam,
-  ToolResultBlockParam,
-  ToolUseBlock,
-} from "@anthropic-ai/sdk/resources/messages";
+  BetaContentBlock,
+  BetaMessageParam,
+  BetaTextBlock,
+  BetaToolResultBlockParam,
+  BetaToolUnion,
+  BetaToolUseBlock,
+} from "@anthropic-ai/sdk/resources/beta/messages/messages.js";
 
-import { DEFAULT_EXECUTOR_MODEL } from "../../runtime/executor.js";
+import { DEFAULT_ADVISOR_MODEL, DEFAULT_EXECUTOR_MODEL } from "../../runtime/executor.js";
 import { runBashTool } from "./tools/bash.js";
 import { runTextEditorTool } from "./tools/text-editor.js";
 import type { ExecuteRequest, ExecuteResult, ExecuteStatus, FailureContext } from "./execute.schema.js";
@@ -36,6 +48,20 @@ const DEFAULT_MAX_TURNS = 60;
 const DEFAULT_MAX_TOKENS_PER_TURN = 4096;
 const TOOL_ERROR_LIMIT = 5;
 
+/**
+ * Beta flag for the advisor tool. Per VISION.md §4 HIGH priority: replaces
+ * the manual two-call Opus escalation with a single-call server-side
+ * sub-inference. The platform handles invocation; Sonnet just emits
+ * server_tool_use blocks.
+ */
+const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
+
+/** Cap advisor invocations per execute run to bound cost. */
+const DEFAULT_ADVISOR_MAX_USES = 5;
+
+/** Client-side tool names we know how to dispatch. Advisor is server-side and excluded. */
+const CLIENT_SIDE_TOOL_NAMES = new Set(["bash", "str_replace_based_edit_tool"]);
+
 /** Lightweight tool-call event used for mid-flight observability. */
 export interface ToolCallEvent {
   /** 1-indexed turn within the agent loop. */
@@ -48,12 +74,15 @@ export interface ToolCallEvent {
 
 interface RunExecuteOptions extends ExecuteRequest {
   client?: Anthropic;
+  /** Override advisor model. Defaults to DEFAULT_ADVISOR_MODEL (Opus 4.7). */
+  advisorModel?: string;
+  /** Cap on advisor invocations per execute run. Default 5. */
+  advisorMaxUses?: number;
   /**
-   * Optional callback fired before each tool invocation. Used by the
-   * workflow to emit `tpdc/execute.tool_call` events for Inngest UI
-   * visibility (TPDC bug #3 from dogfooding ronda 1). Errors thrown
-   * by the callback are caught and ignored — observability must never
-   * break the agent loop.
+   * Optional callback fired before each client-side tool invocation. Used by
+   * orchestrators to surface mid-flight progress. Errors thrown by the
+   * callback are caught and ignored — observability must never break the
+   * agent loop.
    */
   onToolCall?: (event: ToolCallEvent) => void | Promise<void>;
 }
@@ -64,6 +93,8 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   const client = opts.client ?? new Anthropic();
   const model = opts.model ?? DEFAULT_EXECUTOR_MODEL;
   const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
+  const advisorModel = opts.advisorModel ?? DEFAULT_ADVISOR_MODEL;
+  const advisorMaxUses = opts.advisorMaxUses ?? DEFAULT_ADVISOR_MAX_USES;
   const fixMode = opts.failureContext != null;
 
   // 1. Create or reuse worktree
@@ -80,8 +111,8 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
 
   const userInput = buildUserInput(opts, handle);
 
-  const messages: MessageParam[] = [{ role: "user", content: userInput }];
-  const tools = buildToolDefinitions();
+  const messages: BetaMessageParam[] = [{ role: "user", content: userInput }];
+  const tools = buildToolDefinitions({ advisorModel, advisorMaxUses });
 
   let toolCallCount = 0;
   let consecutiveToolErrors = 0;
@@ -93,12 +124,13 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
 
   // 3. Tool-use loop
   for (let turn = 0; turn < maxTurns; turn++) {
-    const response = await client.messages.create({
+    const response = await client.beta.messages.create({
       model,
       max_tokens: DEFAULT_MAX_TOKENS_PER_TURN,
       system: systemPrompt,
       messages,
       tools,
+      betas: [ADVISOR_TOOL_BETA],
     });
 
     totalIn += response.usage.input_tokens;
@@ -115,9 +147,19 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       break;
     }
 
-    // Collect tool uses
-    const toolUses: ToolUseBlock[] = response.content.filter(
-      (block): block is ToolUseBlock => block.type === "tool_use",
+    // Handle pause_turn: a server-side tool (advisor, web_search, etc.) is
+    // mid-invocation. Re-send the assistant content to continue. No tool
+    // results to push — the platform owns the resolution.
+    if (response.stop_reason === "pause_turn") {
+      // The assistant content was already appended above; loop continues.
+      continue;
+    }
+
+    // Collect CLIENT-SIDE tool uses (bash, text_editor). Server-side tools
+    // like advisor emit `server_tool_use` blocks which aren't BetaToolUseBlock.
+    const toolUses: BetaToolUseBlock[] = response.content.filter(
+      (block): block is BetaToolUseBlock =>
+        block.type === "tool_use" && CLIENT_SIDE_TOOL_NAMES.has(block.name),
     );
 
     if (toolUses.length === 0) {
@@ -128,13 +170,12 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     }
 
     // Execute each tool call
-    const toolResults: ToolResultBlockParam[] = [];
+    const toolResults: BetaToolResultBlockParam[] = [];
     for (const tu of toolUses) {
       toolCallCount++;
 
-      // Mid-flight observability: notify the workflow before invoking the
-      // tool. We never let the callback abort the loop; any error from it
-      // is swallowed.
+      // Mid-flight observability: notify the orchestrator before invoking the
+      // tool. Errors swallowed — observability must not break the agent.
       if (opts.onToolCall) {
         try {
           await opts.onToolCall({
@@ -180,14 +221,9 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     status = "no_changes";
   }
 
-  // 5. Commit the agent's final state. Without this, push.ts has nothing
-  // beyond the base SHA to send and `gh pr create` rejects with
-  // "No commits between main and <branch>". commitChanges is idempotent
-  // against the agent having already committed its own work.
-  //
-  // We also commit on max_turns_exceeded when the agent made progress —
-  // the workflow can then push as a draft PR for human review instead of
-  // discarding the partial work (TPDC bug #4 from dogfooding ronda 1).
+  // 5. Commit the agent's final state (idempotent against the agent having
+  // already committed). On max_turns, commit any progress as WIP so it can
+  // be pushed as a draft PR for review.
   let commitSha: string | undefined;
   let commitMessage: string | undefined;
   const shouldCommit =
@@ -201,8 +237,6 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     if (commitResult.committed) {
       commitSha = commitResult.sha;
     } else {
-      // Agent already committed everything itself. We don't add an empty
-      // commit. The branch still has commits; push.ts will work.
       commitMessage = undefined;
     }
   }
@@ -232,9 +266,9 @@ function buildDefaultCommitMessage(
 ): string {
   const title = intakeTitle.trim() || `tpdc: ${runId}`;
   if (status === "max_turns_exceeded") {
-    return `WIP: ${title}\n\nAgent halted at max_turns — partial work, human review needed.\nGenerated by TPDC v2 (run ${runId})`;
+    return `WIP: ${title}\n\nAgent halted at max_turns — partial work, human review needed.\nGenerated by TPDC v0.3 (run ${runId})`;
   }
-  return `${title}\n\nGenerated by TPDC v2 (run ${runId})`;
+  return `${title}\n\nGenerated by TPDC v0.3 (run ${runId})`;
 }
 
 /** Per-tool-result content cap so fix-mode payloads don't blow up context. */
@@ -297,7 +331,6 @@ function formatFailureContext(ctx: FailureContext): string {
 
 function truncateForContext(text: string): string {
   if (text.length <= FAILURE_OUTPUT_CHARS) return text;
-  // Keep the tail — failure messages typically have the most useful info at the end.
   return `... (truncated ${text.length - FAILURE_OUTPUT_CHARS} chars)\n${text.slice(-FAILURE_OUTPUT_CHARS)}`;
 }
 
@@ -308,7 +341,7 @@ interface ToolHandlerResult {
   isError: boolean;
 }
 
-async function dispatchTool(tu: ToolUseBlock, worktreePath: string): Promise<ToolHandlerResult> {
+async function dispatchTool(tu: BetaToolUseBlock, worktreePath: string): Promise<ToolHandlerResult> {
   switch (tu.name) {
     case "bash":
       return runBashTool(tu.input as { command: string; description?: string }, { worktreePath });
@@ -318,29 +351,50 @@ async function dispatchTool(tu: ToolUseBlock, worktreePath: string): Promise<Too
         { worktreePath },
       );
     default:
+      // Should be unreachable — the loop filters tool_uses by client-side names
+      // before dispatching. If we land here, the filter is out of sync.
       return {
-        content: `Error: unknown tool "${tu.name}". Use bash or str_replace_based_edit_tool.`,
+        content: `Error: unknown client-side tool "${tu.name}". Expected bash or str_replace_based_edit_tool.`,
         isError: true,
       };
   }
 }
 
-function buildToolDefinitions(): Anthropic.Messages.MessageCreateParams["tools"] {
+interface ToolDefOpts {
+  advisorModel: string;
+  advisorMaxUses: number;
+}
+
+/**
+ * Build the tool definitions passed to the beta messages API.
+ *
+ * Exported for unit-testing the advisor wiring without an end-to-end run.
+ */
+export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
   return [
     {
       type: "bash_20250124",
       name: "bash",
-    } as unknown as Anthropic.Messages.Tool,
+    } as unknown as BetaToolUnion,
     {
       type: "text_editor_20250728",
       name: "str_replace_based_edit_tool",
-    } as unknown as Anthropic.Messages.Tool,
+    } as unknown as BetaToolUnion,
+    {
+      // Advisor tool — server-side sub-inference. SDK 0.78 predates this beta,
+      // so the cast is necessary. The API accepts it because we set
+      // `betas: ['advisor-tool-2026-03-01']` on the request.
+      type: "advisor_20260301",
+      name: "advisor",
+      model: opts.advisorModel,
+      max_uses: opts.advisorMaxUses,
+    } as unknown as BetaToolUnion,
   ];
 }
 
-function extractText(content: Anthropic.Messages.ContentBlock[]): string {
+function extractText(content: BetaContentBlock[]): string {
   return content
-    .filter((b): b is Anthropic.Messages.TextBlock => b.type === "text")
+    .filter((b): b is BetaTextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n");
 }

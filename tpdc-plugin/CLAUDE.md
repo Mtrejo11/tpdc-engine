@@ -1,6 +1,6 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** v0.3.0-alpha.7 (Claude Code plugin + MCP server — feature complete end-to-end at the pipeline level). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** v0.3.0-alpha.9 (Claude Code plugin + MCP server — pipeline complete + advisor + team-of-agents). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
 
@@ -37,19 +37,18 @@ Each stage is either:
 | `tpdc_ping` | Health check for the MCP server (plugin setup validation). |
 | `tpdc_validate_intake_artifact` | Validate a candidate IntakeArtifact against the Zod schema. |
 | `tpdc_validate_plan_artifact` | Validate a candidate PlanArtifact against the Zod schema AND semantic invariants (DAG, dependency refs, readiness/steps consistency). |
-| `tpdc_execute` | Creates a git worktree, runs the agentic bash + text_editor loop against the validated plan, captures the diff, commits. Returns ExecuteResult JSON. Accepts `existingWorktree` + `failureContext` for fix-mode retries. |
+| `tpdc_execute` | Creates a git worktree, runs the agentic bash + text_editor + **advisor** loop against the validated plan, captures the diff, commits. Advisor tool (Opus 4.7, server-side, cap 5/run) integrated via beta `advisor-tool-2026-03-01` — Sonnet 4.6 consults Opus mid-call on hard sub-decisions. Returns ExecuteResult JSON. Accepts `existingWorktree` + `failureContext` for fix-mode retries. |
 | `tpdc_run_tests` | Runs the plan's `testCommands` sequentially in the worktree. Returns per-command (passed/failed/errored + exit + stdout/stderr) + aggregate status. |
 | `tpdc_push` | `git push -u <remote> <branch>` from the worktree. On success, removes the worktree directory (branch ref kept). Force-push-with-lease via `force=true` for auto-fix-CI. |
 | `tpdc_open_pr` | `gh pr create` with title/body rendered from intake + plan + execute + (optional) tests. Returns PR URL + number. Status `gh_missing` if gh CLI is not on PATH. Supports `draft` + `wipReason`. |
 | `tpdc_wait_ci` | Polls `gh run list` until the most recent run for `branch` reaches a terminal state. Returns conclusion (success/failure/cancelled/...). Exponential backoff (default 5s → 30s cap, max wait 30min). Status `timeout` and `errored` (gh repeatedly failing) are valid outcomes. |
 | `tpdc_fetch_ci_logs` | `gh run view --log-failed` for the most recent run on `branch`. Returns tail-preserved log blob (default 8KB cap). Used to feed FailureContext into a fix-mode `tpdc_execute`. |
+| `tpdc_team_meeting` | **D6.** Convenes 2-4 role agents (PM, TechLead, Designer, Engineer) in parallel + Opus moderator synthesis. Returns synthesized answers with role provenance, assumptions to commit to, preserved dissent, consensus boolean, and optional escalateToHuman. ~$0.30 / 60-75s per meeting. Single-shot (no recursion). Use when intake/plan can't converge after 2-3 rounds, or for explicit multi-perspective deliberation. |
 
-## Coming next (alpha.8+)
+## Coming next (alpha.10+)
 
 | Stage | Form | Notes |
 |---|---|---|
-| Advisor tool integration | Refactor of execute | Replace manual Opus escalation with the platform's beta advisor tool (VISION.md §4). |
-| Team-of-agents meeting (D6) | MCP tool | Parallel PM/TechLead/Designer/Engineer + Opus moderator when intake doesn't converge. |
 | v1 skills cleanup | Remove deprecated | `develop`, `solve`, `discovery`, `assess`, `fix`, `refactor`, `show`, `diff` directories. |
 | **beta — dogfood-003 smoke** | Validation | Real run against `Mtrejo11/inventario-reventa` to validate the form-factor pivot end-to-end. |
 | **v0.3.0 final** | Release | After beta validates. |
