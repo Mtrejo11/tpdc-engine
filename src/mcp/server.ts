@@ -22,6 +22,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { VERSION } from "../index.js";
+import { executeTool } from "./tools/execute.js";
 import { pingTool } from "./tools/ping.js";
 import type { ToolDefinition } from "./tools/types.js";
 import { validateIntakeArtifactTool } from "./tools/validate-intake.js";
@@ -33,6 +34,7 @@ export const TOOLS: ToolDefinition[] = [
   pingTool,
   validateIntakeArtifactTool,
   validatePlanArtifactTool,
+  executeTool,
 ];
 
 // ── Server wiring ────────────────────────────────────────────────────
