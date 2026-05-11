@@ -17,6 +17,18 @@ export const FeatureRequestedSchema = z.object({
   request: z.string().min(1),
   repoRoot: z.string(),
   requestedBy: z.string().optional(),
+  /**
+   * Override the default max attempts for the intake unblock loop on a
+   * per-run basis. Lets the caller (CLI / MCP / future Web UI) bump it for
+   * tasks that are known to be vague (e.g., visual UI tweaks) without
+   * touching the global default. Range [1, 10] keeps cost bounded.
+   */
+  intakeMaxAttempts: z.number().int().min(1).max(10).optional(),
+  /**
+   * Override the default max attempts for the plan unblock loop on a
+   * per-run basis. Same rationale as intakeMaxAttempts.
+   */
+  planMaxAttempts: z.number().int().min(1).max(10).optional(),
 });
 export type FeatureRequested = z.infer<typeof FeatureRequestedSchema>;
 

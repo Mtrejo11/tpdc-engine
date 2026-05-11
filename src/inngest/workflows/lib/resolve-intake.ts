@@ -26,7 +26,11 @@ import type {
 } from "../../../stages/intake/intake.schema.js";
 import { augmentRequestWithAnswers } from "./augment-request.js";
 
-const DEFAULT_MAX_ATTEMPTS = 3;
+// Bumped from 3 to 5 in alpha.3 as defense-in-depth before the team-of-agents
+// pivot kicks in (see DECISIONS.md §D6 + HANDOFF.md). For vague/visual tasks
+// the intake agent recursively surfaces questions, so a higher cap reduces the
+// false-halt rate. The real fix is the team meeting; this just buys headroom.
+const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_UNBLOCK_TIMEOUT = "1d";
 
 export interface ResolveIntakeOptions {

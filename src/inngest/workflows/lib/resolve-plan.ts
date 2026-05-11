@@ -19,7 +19,10 @@ import type { IntakeArtifact } from "../../../stages/intake/intake.schema.js";
 import type { PlanArtifact } from "../../../stages/plan/plan.schema.js";
 import type { PlanResolution } from "../../../schemas/events.js";
 
-const DEFAULT_MAX_ATTEMPTS = 3;
+// Bumped from 3 to 5 in alpha.3 as defense-in-depth before the team-of-agents
+// pivot kicks in (see DECISIONS.md §D6 + HANDOFF.md). Plan unblock can also
+// fractalize for under-specified tasks; same rationale as intake.
+const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_UNBLOCK_TIMEOUT = "1d";
 
 export interface ResolvePlanOptions {

@@ -42,6 +42,7 @@ export const shipFeature = inngest.createFunction(
       step,
       runId: event.data.runId,
       request: event.data.request,
+      maxAttempts: event.data.intakeMaxAttempts,
     });
 
     if (intake.kind === "halted") {
@@ -78,6 +79,7 @@ export const shipFeature = inngest.createFunction(
       step,
       runId: event.data.runId,
       intake: intake.artifact,
+      maxAttempts: event.data.planMaxAttempts,
     });
 
     if (plan.kind === "halted") {
