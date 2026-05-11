@@ -6,4 +6,4 @@
  * the source-of-truth architecture.
  */
 
-export const VERSION = "0.3.0-alpha.0" as const;
+export const VERSION = "0.3.0-alpha.2" as const;

@@ -1,19 +1,17 @@
 {
   "name": "tpdc",
-  "version": "0.1.0",
-  "description": "Technical Product Development Cycle — AI-powered workflow engine for feature development, bug fixing, refactoring, assessment, planning, and discovery.",
+  "version": "0.3.0-alpha.2",
+  "description": "Technical Product Development Cycle — Claude Code plugin + MCP server for autonomous feature development. Request to PR with CI green.",
   "author": {
     "name": "TPDC"
   },
   "repository": "https://github.com/mtrejodev/tpdc-engine",
   "license": "MIT",
   "keywords": [
-    "development-workflow",
+    "claude-code",
+    "mcp",
+    "autonomous-dev",
     "code-generation",
-    "bug-fix",
-    "refactoring",
-    "code-assessment",
-    "planning",
-    "discovery"
+    "development-workflow"
   ]
 }

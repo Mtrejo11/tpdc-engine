@@ -4,19 +4,19 @@
     "name": "TPDC"
   },
   "metadata": {
-    "description": "Technical Product Development Cycle — AI-powered workflow engine"
+    "description": "Technical Product Development Cycle — Claude Code plugin + MCP server for autonomous feature development"
   },
   "plugins": [
     {
       "name": "tpdc",
       "source": "./",
-      "description": "AI-powered workflow engine for feature development, bug fixing, refactoring, assessment, planning, and discovery.",
-      "version": "0.1.0",
+      "description": "Autonomous dev workflow: request → PR with CI green. Exposes stages as skills + MCP validators per VISION.md.",
+      "version": "0.3.0-alpha.2",
       "keywords": [
-        "development-workflow",
-        "code-generation",
-        "bug-fix",
-        "refactoring"
+        "claude-code",
+        "mcp",
+        "autonomous-dev",
+        "code-generation"
       ],
       "strict": false
     }

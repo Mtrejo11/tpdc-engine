@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tpdc-mcp — Claude Code MCP server (v0.3 pivot scaffold).
+ * tpdc-mcp — Claude Code MCP server.
  *
  * Surface (per VISION.md §3):
  *   - Validators: lightweight Zod-parse tools for stage artifacts.
@@ -10,8 +10,7 @@
  *
  * This file ships as the `tpdc-mcp` bin. Claude Code launches it via stdio.
  *
- * v0.3.0-alpha.0 is the scaffold: only the `tpdc_ping` health tool is wired
- * to validate the plumbing end-to-end. Real tools land in alpha.1+.
+ * Tools are defined one-per-file under `src/mcp/tools/` and aggregated here.
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -23,55 +22,18 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 import { VERSION } from "../index.js";
+import { pingTool } from "./tools/ping.js";
+import type { ToolDefinition } from "./tools/types.js";
+import { validateIntakeArtifactTool } from "./tools/validate-intake.js";
+import { validatePlanArtifactTool } from "./tools/validate-plan.js";
 
 // ── Tool registry ────────────────────────────────────────────────────
 
-interface ToolDefinition {
-  name: string;
-  description: string;
-  inputSchema: {
-    type: "object";
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
-  handler: (args: Record<string, unknown>) => Promise<CallToolResult>;
-}
-
-/**
- * Scaffold ping tool. Returns server version + an optional echoed message.
- * Used to validate that Claude Code → stdio → MCP plumbing works before we
- * register real tools in alpha.1.
- */
-const pingTool: ToolDefinition = {
-  name: "tpdc_ping",
-  description:
-    "Health check for the tpdc-mcp server. Returns server version and " +
-    "optionally echoes a message. Use to confirm Claude Code can reach the " +
-    "MCP server during plugin setup.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      message: {
-        type: "string",
-        description: "Optional string echoed back in the response.",
-      },
-    },
-  },
-  handler: async (args) => {
-    const message = typeof args["message"] === "string" ? args["message"] : "";
-    const echoed = message ? ` echo: ${message}` : "";
-    return {
-      content: [
-        {
-          type: "text",
-          text: `tpdc-mcp v${VERSION} alive${echoed}`,
-        },
-      ],
-    };
-  },
-};
-
-const TOOLS: ToolDefinition[] = [pingTool];
+export const TOOLS: ToolDefinition[] = [
+  pingTool,
+  validateIntakeArtifactTool,
+  validatePlanArtifactTool,
+];
 
 // ── Server wiring ────────────────────────────────────────────────────
 
@@ -139,8 +101,6 @@ async function main(): Promise<void> {
 }
 
 // Only run main() when invoked directly (not when imported by tests).
-// In NodeNext ESM, `import.meta.url` matches `process.argv[1]` when the
-// file is the entry point.
 const invokedDirectly =
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith("/mcp/server.js") ||
