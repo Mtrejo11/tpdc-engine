@@ -23,6 +23,7 @@ import {
 
 import { VERSION } from "../index.js";
 import { executeTool } from "./tools/execute.js";
+import { fetchCILogsTool } from "./tools/fetch-ci-logs.js";
 import { openPRTool } from "./tools/open-pr.js";
 import { pingTool } from "./tools/ping.js";
 import { pushTool } from "./tools/push.js";
@@ -30,6 +31,7 @@ import { runTestsTool } from "./tools/run-tests.js";
 import type { ToolDefinition } from "./tools/types.js";
 import { validateIntakeArtifactTool } from "./tools/validate-intake.js";
 import { validatePlanArtifactTool } from "./tools/validate-plan.js";
+import { waitCITool } from "./tools/wait-ci.js";
 
 // ── Tool registry ────────────────────────────────────────────────────
 
@@ -41,6 +43,8 @@ export const TOOLS: ToolDefinition[] = [
   runTestsTool,
   pushTool,
   openPRTool,
+  waitCITool,
+  fetchCILogsTool,
 ];
 
 // ── Server wiring ────────────────────────────────────────────────────
