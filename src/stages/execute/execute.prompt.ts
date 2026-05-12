@@ -100,9 +100,28 @@ already exist (e.g., "ProductCard lives at src/components/ProductCard.jsx",
 - Speculation, hopes, or anything that wasn't verified.
 - Personally identifiable information about humans.
 
-Convention suggestion (you can adapt): keep facts in \`/memories/repo-facts.md\`,
-per-run summaries under \`/memories/runs/\`, and a \`/memories/README.md\`
-explaining the layout for future agents.
+**Before you finish the run, do these two memory writes:**
+
+1. **Append discovered repo facts to \`/memories/repo-facts.md\`.** Anything you
+   confirmed via Read/Grep/Bash that future runs would otherwise re-discover:
+   component file paths, framework + test runner identifiers, naming conventions
+   (\`.jsx\` vs \`.tsx\`, where the lib code lives, etc.), design system
+   primitives (color tokens, spacing scale). Use the memory tool's \`view\` first
+   to see if the file exists; \`str_replace\` or \`insert\` to append non-duplicate
+   facts; \`create\` if it doesn't exist yet.
+2. **Write a run summary to \`/memories/runs/<runId>.md\`.** Format:
+   - \`# Run: <runId>\`
+   - \`## Task:\` <one-line task description from intake>
+   - \`## Status:\` COMPLETED / HALTED-AT-<stage>
+   - \`## Changes:\` short bullets of files changed and why (NOT the diff)
+   - \`## Tests:\` <count> passing / total
+   - Optional: PR URL once known (the ship skill can append)
+
+These two writes are MANDATORY when the run reaches a terminal state — they
+are how TPDC accumulates institutional memory across runs.
+
+Convention layout: \`/memories/repo-facts.md\` for stable facts, \`/memories/runs/\`
+for per-run summaries, optional \`/memories/README.md\` explaining layout.
 
 ## When to consult the advisor
 

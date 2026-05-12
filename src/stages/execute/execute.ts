@@ -70,6 +70,37 @@ const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 const DEFAULT_ADVISOR_MAX_USES = 5;
 
 /**
+ * Derive a human-readable branch name from the intake title.
+ *
+ * `tpdc/run-ship-20260511-234802-79c23c` is correct but unreadable in PR
+ * lists and Git UIs. `tpdc/add-sorting-options-for-product-list-79c23c`
+ * tells a reviewer what the branch is about at a glance.
+ *
+ * Strategy:
+ *   - Lowercase, strip diacritics (Spanish/accented characters → ASCII).
+ *   - Replace any non-alphanumeric sequence with a single dash.
+ *   - Trim leading/trailing dashes.
+ *   - Cap slug at 40 chars to keep total branch length reasonable.
+ *   - Append a 6-char tail from runId for uniqueness across reruns.
+ *   - Fall back to `tpdc/run-<runId>` if title is unusable (empty / non-alpha).
+ *
+ * Exported for unit testing without an end-to-end run.
+ */
+export function buildBranchName(intakeTitle: string, runId: string): string {
+  const slug = (intakeTitle ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // strip combining diacritics
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/g, ""); // trim trailing dash if slice cut mid-word
+
+  const tail = (runId.split("-").pop() ?? "").slice(0, 6) || "runid";
+  return slug.length > 0 ? `tpdc/${slug}-${tail}` : `tpdc/run-${runId}`;
+}
+
+/**
  * Prompt caching cache_control marker. Placed on the last tool definition
  * AND the system text block so the (system + tools) prefix becomes a single
  * cache entry. With the agentic loop firing 60 turns at the same prefix,
@@ -127,6 +158,7 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     ?? (await createWorktree({
       repoRoot: opts.repoRoot,
       runId: opts.runId,
+      branchName: buildBranchName(opts.intakeTitle, opts.runId),
     }));
 
   // 2. Build the initial user message: plan + worktree + (fix-mode) failure context
@@ -146,8 +178,6 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   let cacheCreationIn = 0;
   let cacheReadIn = 0;
   let advisorInvocations = 0;
-  let advisorInputTokens = 0;
-  let advisorOutputTokens = 0;
   let lastModelId = model;
   let finalSummary = "";
   let status: ExecuteStatus = "max_turns_exceeded";
@@ -175,33 +205,29 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
 
     totalIn += response.usage.input_tokens;
     totalOut += response.usage.output_tokens;
-    // Cache + advisor sub-inference accounting. The SDK exposes these on
-    // usage when the corresponding features fire. Defaults to zero / empty
-    // when not present (e.g., a one-turn run or pre-cache code path).
+    // Cache usage tracking. The SDK exposes these on usage when prompt
+    // caching is active. Defaults to zero when no cache interaction.
     const u = response.usage as {
       input_tokens: number;
       output_tokens: number;
       cache_creation_input_tokens?: number;
       cache_read_input_tokens?: number;
-      iterations?: Array<{
-        type?: string;
-        input_tokens?: number;
-        output_tokens?: number;
-      }> | null;
     };
     cacheCreationIn += u.cache_creation_input_tokens ?? 0;
     cacheReadIn += u.cache_read_input_tokens ?? 0;
-    // Per turn, iterations[] is the list of sub-inferences the platform ran.
-    // Message-type entries are advisor calls (today's only producer); if we
-    // ever add web search/fetch as server tools, they surface as their own
-    // types and would not increment advisorInvocations.
-    if (Array.isArray(u.iterations)) {
-      for (const iter of u.iterations) {
-        if (iter?.type === "message") {
-          advisorInvocations++;
-          advisorInputTokens += iter.input_tokens ?? 0;
-          advisorOutputTokens += iter.output_tokens ?? 0;
-        }
+    // Advisor invocation count (alpha.5 correction). The platform's
+    // `usage.iterations[]` array includes the main inference as a
+    // message-type entry alongside any advisor sub-calls, so counting all
+    // message iterations over-counts (dogfood-005 observed advisorInvocations
+    // = turnCount). The reliable source is the response.content stream:
+    // each advisor invocation produces one `server_tool_use` block with
+    // name === "advisor". Per-token attribution for advisor calls is
+    // deferred to a future alpha (the iterations breakdown doesn't carry
+    // a reliable origin marker yet).
+    for (const block of response.content) {
+      const b = block as { type?: string; name?: string };
+      if (b.type === "server_tool_use" && b.name === "advisor") {
+        advisorInvocations++;
       }
     }
     lastModelId = response.model;
@@ -334,8 +360,6 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
         ? {
             advisor: {
               invocations: advisorInvocations,
-              inputTokens: advisorInputTokens,
-              outputTokens: advisorOutputTokens,
             },
           }
         : {}),

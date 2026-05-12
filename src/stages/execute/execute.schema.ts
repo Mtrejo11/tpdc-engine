@@ -98,20 +98,25 @@ export interface ExecuteResult {
      */
     cacheReadInputTokens?: number;
     /**
-     * Advisor sub-inference accounting (v0.4.0-alpha.3+). Derived from the
-     * platform's `usage.iterations` array — message-type iterations within
-     * a turn are server-side advisor calls. Today this is the only producer
-     * of message iterations in our setup; if we later add web-search /
-     * web-fetch they'd surface under their own fields, not this one.
-     * Undefined when no advisor invocations happened.
+     * Advisor invocation accounting (v0.4.0-alpha.5+).
+     *
+     * Counted from `server_tool_use` blocks named "advisor" in each turn's
+     * response.content stream — that's the reliable source of truth.
+     *
+     * Token attribution is intentionally NOT surfaced here yet. The
+     * platform's `usage.iterations` array doesn't carry a reliable origin
+     * marker that distinguishes the main inference from advisor sub-calls,
+     * so any per-call token figure would risk double-counting (which
+     * dogfood-005's alpha.3 implementation hit). Total token cost is
+     * already captured in `usage.inputTokens`/`outputTokens` at the parent
+     * level; advisor-only attribution will come back when the platform
+     * exposes it cleanly.
+     *
+     * Undefined when no advisor invocations happened in this run.
      */
     advisor?: {
       /** Count of advisor calls summed across all turns of this run. */
       invocations: number;
-      /** Sum of input tokens charged to advisor sub-inferences. */
-      inputTokens: number;
-      /** Sum of output tokens produced by advisor sub-inferences. */
-      outputTokens: number;
     };
   };
   /** The model id Anthropic actually served. */

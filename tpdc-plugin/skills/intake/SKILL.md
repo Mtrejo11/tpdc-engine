@@ -28,13 +28,15 @@ If `tpdc_execute` is available in the session AND it's wired into a previous run
 
 If there's a `/memories/repo-facts.md` from a previous run, the executor reads it on the next run. So you don't need to read it during intake — the executor will, and it'll inform downstream stages naturally.
 
-Practically: keep an eye out during exploration for stable repo facts worth persisting. Examples to flag in your intake's `assumptions` or `notes`:
+Practically: keep an eye out during exploration for stable repo facts worth persisting. Examples to flag in your intake's `assumptions` (these will land in the executor's context, and the executor's prompt now MANDATES it persist them to `/memories/repo-facts.md` before finishing):
 
 - "ProductCard lives at src/components/ProductCard.jsx" (path that future runs would re-discover otherwise)
 - "Test runner is bun + vitest" (framework choice)
 - "Tailwind primary color is bg-emerald-600" (design system convention)
+- "React components use .jsx, plain JS libs use .js" (extension convention)
+- "Utility libs live in src/lib/, components in src/components/" (layout convention)
 
-These show up in the executor's input via your intake artifact, and the executor can persist them to `/memories/repo-facts.md` if helpful.
+**Tip:** prefix repo-fact assumptions with `[repo-fact]` in your IntakeArtifact's `assumptions` array. The executor's prompt looks for this tag (informally) to decide what's worth persisting vs run-specific assumptions. Example: `"[repo-fact] ProductCard lives at src/components/ProductCard.jsx"`.
 
 ### 1. Explore the repo (do this BEFORE asking the human anything)
 

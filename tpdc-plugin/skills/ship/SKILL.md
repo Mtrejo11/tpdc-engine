@@ -304,9 +304,9 @@ Keep these in your scratchpad as you progress:
 
 ## Final step — persist the run summary to memory (v0.4)
 
-After the pipeline reaches its terminal state (success OR halted), invoke `tpdc_execute`'s memory tool (or rather: call it via a final lightweight execute step — see below) to write the run summary to `/memories/runs/<runId>.md`. This persists across sessions so the next TPDC run on this repo can see context without re-deriving it.
+The executor's system prompt now MANDATES that it write `/memories/runs/<runId>.md` and append to `/memories/repo-facts.md` before finishing. So the run summary file should already exist by the time you reach this step. Your job here is to verify the file is present and (optionally) append the post-execute metadata the executor can't know — PR URL, final CI conclusion, ship-level cost roll-up.
 
-Actually the cleanest path: persist memory via your last `tpdc_execute` call OR invoke the memory tool indirectly through a final agent turn. If neither is convenient, surface the summary in chat (which you'd do anyway) and note that for v0.5+ we may add a dedicated `tpdc_record_run_event` MCP tool.
+If you find the file is MISSING after a successful execute, that's a prompt-following failure worth surfacing in your final summary to the user (and as feedback to TPDC for the next alpha).
 
 Suggested summary file format (`/memories/runs/<runId>.md`):
 
@@ -349,6 +349,14 @@ Suggested summary file format (`/memories/runs/<runId>.md`):
 ```
 
 Note: the agent will only have visibility into TPDC's MCP-tool token usage. Claude Code's session token consumption (the cost of running intake/plan/auto-fix-ci as skills) is OUTSIDE TPDC's visibility. Don't fabricate those numbers — say "session burn handled by Claude Code; not surfaced to TPDC" if asked.
+
+**Minimum required content** (rest is nice-to-have):
+- PR URL (or "not opened" with reason)
+- Final CI conclusion
+- TPDC-visible cost from `executeResult.usage` (input + output + cache reads + advisor invocations)
+- Files changed list
+
+The structured template above is the FULL form. If you only get to the minimum, that's still a valid summary.
 
 ## Example shape of the final summary you present to the user
 

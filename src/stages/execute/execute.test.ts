@@ -11,7 +11,63 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildToolDefinitions } from "./execute.js";
+import { buildBranchName, buildToolDefinitions } from "./execute.js";
+
+// ── Branch name derivation (alpha.5) ────────────────────────────────
+
+describe("buildBranchName", () => {
+  it("slugs a plain English title with a short runId tail", () => {
+    expect(
+      buildBranchName(
+        "Add sorting options for product list",
+        "ship-20260511-234802-79c23c",
+      ),
+    ).toBe("tpdc/add-sorting-options-for-product-list-79c23c");
+  });
+
+  it("strips Spanish accents (NFKD) to keep branches ASCII", () => {
+    expect(
+      buildBranchName(
+        "Mejorar diseño de la información",
+        "ship-20260512-x-abc123",
+      ),
+    ).toBe("tpdc/mejorar-diseno-de-la-informacion-abc123");
+  });
+
+  it("collapses runs of punctuation/whitespace into single dashes", () => {
+    expect(
+      buildBranchName("Foo!! Bar—Baz / Qux", "ship-x-deadbe"),
+    ).toBe("tpdc/foo-bar-baz-qux-deadbe");
+  });
+
+  it("trims leading + trailing dashes from the slug", () => {
+    expect(
+      buildBranchName("  !!!  Refactor cache layer  !!!  ", "ship-x-cafe01"),
+    ).toBe("tpdc/refactor-cache-layer-cafe01");
+  });
+
+  it("caps the slug at 40 chars and re-trims any trailing dash", () => {
+    const title = "Implement a very long descriptive feature name here";
+    const branch = buildBranchName(title, "ship-x-aaaaaa");
+    // Slug must be <= 40 chars (then -<6-char-tail>).
+    const slug = branch.replace(/^tpdc\//, "").replace(/-aaaaaa$/, "");
+    expect(slug.length).toBeLessThanOrEqual(40);
+    expect(slug.endsWith("-")).toBe(false);
+  });
+
+  it("falls back to runId-based naming when title slugs to empty", () => {
+    expect(buildBranchName("", "ship-20260511-79c23c")).toBe(
+      "tpdc/run-ship-20260511-79c23c",
+    );
+    expect(buildBranchName("!!! @@@ ###", "ship-x-y")).toBe("tpdc/run-ship-x-y");
+  });
+
+  it("uses 'runid' literal tail when runId has no dashes", () => {
+    expect(buildBranchName("Add feature", "plainrunid")).toBe(
+      "tpdc/add-feature-plainr",
+    );
+  });
+});
 
 describe("buildToolDefinitions", () => {
   const opts = { advisorModel: "claude-opus-4-7", advisorMaxUses: 5 };
@@ -44,6 +100,8 @@ describe("buildToolDefinitions", () => {
     const adv = advisor as unknown as { type: string; model: string; max_uses: number };
     expect(adv.type).toBe("advisor_20260301");
     expect(adv.model).toBe("claude-opus-4-7");
+    // Note: advisor max_uses is a soft cap the platform may not strictly enforce;
+    // dogfood-005 observed 16 invocations in a 16-turn run with max_uses=5.
     expect(adv.max_uses).toBe(5);
   });
 
