@@ -30,27 +30,58 @@ This is the **first** validation smoke for the v0.3 architecture. The form-facto
 
 ## 2. Install the plugin (one-time)
 
-The plugin is in `tpdc-engine/tpdc-plugin/`. Install it into Claude Code's local marketplace:
+The flow is still **one marketplace + one plugin + build + API key**. Extra steps below exist only because (a) Claude Code had bugs when the marketplace path pointed at a **`marketplace.json` file** instead of the **repo directory**, and (b) the MCP child process does not inherit your shell’s env unless you configure it — not because TPDC wants more ceremony.
+
+### 2a. Build the engine (always)
 
 ```bash
-cd ~/Documents/Personal/tpdc-engine
-
-# Use Claude Code's plugin install flow.
-# Either: link a local marketplace, or copy the plugin dir to Claude Code's plugins location.
-# Exact command depends on Claude Code's version — see its docs.
-# Typical pattern (subject to change):
-#   /plugin marketplace add /path/to/tpdc-engine   (repo root only — do not pass marketplace.json)
-#   /plugin install tpdc
+cd ~/Documents/Personal/tpdc-engine   # or your clone path
+npm install
+npm run build
 ```
 
-Verify the install:
+You need `dist/mcp/server.js` in **this clone**. The plugin’s MCP server runs `node` on that file.
 
-1. In Claude Code chat, list available skills. You should see `intake`, `plan`, `ship`, `auto-fix-ci`.
-2. Call the MCP ping tool to confirm the server starts:
-   - In chat: "use the `tpdc_ping` MCP tool with message=hello"
-   - Expected response: `tpdc-mcp v0.3.0-alpha.10 alive echo: hello`
+### 2b. Register the marketplace and install the plugin (in Claude Code chat)
 
-If `tpdc_ping` fails, check the launcher script (`tpdc-plugin/start-mcp.sh`) — it should run `node dist/mcp/server.js` from the engine repo. The repo's `dist/` must be built (`npm run build`).
+Use the **repository root directory** only — do **not** pass a path ending in `marketplace.json` (that pattern broke `installLocation` in some Claude versions and produced nonsense paths like `tpdc-plugin/tpdc-plugin`).
+
+```
+/plugin marketplace add /Users/mtrejodev/Documents/Personal/tpdc-engine
+/plugin install tpdc@tpdc
+/reload-plugins
+```
+
+(Adjust the path if your clone lives elsewhere.)
+
+### 2c. Anthropic API key (required for `tpdc_execute`)
+
+The MCP server is a separate process: it does **not** use your Claude subscription token. Put a direct API key in a file the launcher sources (never commit this):
+
+```bash
+mkdir -p ~/.config/tpdc
+# create ~/.config/tpdc/env with one line: ANTHROPIC_API_KEY=sk-ant-...
+chmod 600 ~/.config/tpdc/env
+```
+
+`tpdc-plugin/start-mcp.sh` loads `~/.config/tpdc/env` then `<engine>/.env` before starting Node.
+
+### 2d. Optional — `TPDC_ENGINE_ROOT` (only if MCP shows “failed” / reconnect loop)
+
+Claude often caches **only** `tpdc-plugin/` under `~/.claude/plugins/cache/...`, which does **not** include the monorepo’s `dist/`. The launcher supports pointing at your clone:
+
+```bash
+export TPDC_ENGINE_ROOT="$HOME/Documents/Personal/tpdc-engine"
+```
+
+Use the **same terminal** to launch `claude` if you start Claude from the CLI; if you only use the Dock app, set that variable in your OS/Claude environment the way you manage other secrets (LaunchAgent, direnv, etc.).
+
+### 2e. Verify
+
+1. Skills visible: `intake`, `plan`, `ship`, `auto-fix-ci`.
+2. MCP: ask Claude to run **`tpdc_ping`** with `message=hello`. You should see an alive line with the engine version (version string tracks `package.json`).
+
+If `tpdc_ping` fails, open **Manage MCP servers** → `plugin:tpdc:tpdc` — if it says **failed**, re-check **2a** (build), **2c** (key file), and **2d** (`TPDC_ENGINE_ROOT`). Remove a broken cache copy if needed: `rm -rf ~/.claude/plugins/cache/tpdc` then reinstall **2b**.
 
 ---
 
