@@ -4,7 +4,7 @@ description: Convert a vague feature request into a structured TPDC IntakeArtifa
 allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact, mcp__plugin_tpdc_tpdc__tpdc_team_meeting
 metadata:
   author: tpdc
-  version: "0.3"
+  version: "0.4"
 ---
 
 # TPDC Intake
@@ -21,6 +21,20 @@ Convert a vague feature request into a structured ticket the rest of the TPDC pi
 A validated `IntakeArtifact` object matching the schema below. Return it to the caller after the MCP validator confirms shape.
 
 ## Workflow
+
+### 0. Check memory first (v0.4+)
+
+If `tpdc_execute` is available in the session AND it's wired into a previous run on this repo, you can leverage prior knowledge via the memory tool. The memory tool is exposed inside `tpdc_execute`'s loop — NOT directly from this skill. So instead of trying to read memory here, the pattern is: **at the end of intake**, optionally suggest repo facts that should be persisted; the executor will store them via `view`/`create` during its agent loop.
+
+If there's a `/memories/repo-facts.md` from a previous run, the executor reads it on the next run. So you don't need to read it during intake — the executor will, and it'll inform downstream stages naturally.
+
+Practically: keep an eye out during exploration for stable repo facts worth persisting. Examples to flag in your intake's `assumptions` or `notes`:
+
+- "ProductCard lives at src/components/ProductCard.jsx" (path that future runs would re-discover otherwise)
+- "Test runner is bun + vitest" (framework choice)
+- "Tailwind primary color is bg-emerald-600" (design system convention)
+
+These show up in the executor's input via your intake artifact, and the executor can persist them to `/memories/repo-facts.md` if helpful.
 
 ### 1. Explore the repo (do this BEFORE asking the human anything)
 

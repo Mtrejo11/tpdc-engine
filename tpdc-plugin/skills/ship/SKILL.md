@@ -4,7 +4,7 @@ description: TPDC end-to-end — take a feature request in natural language and 
 allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact, mcp__plugin_tpdc_tpdc__tpdc_validate_plan_artifact, mcp__plugin_tpdc_tpdc__tpdc_execute, mcp__plugin_tpdc_tpdc__tpdc_run_tests, mcp__plugin_tpdc_tpdc__tpdc_push, mcp__plugin_tpdc_tpdc__tpdc_open_pr, mcp__plugin_tpdc_tpdc__tpdc_wait_ci, mcp__plugin_tpdc_tpdc__tpdc_fetch_ci_logs
 metadata:
   author: tpdc
-  version: "0.3"
+  version: "0.4"
 ---
 
 # TPDC Ship — End-to-End Feature Pipeline
@@ -301,6 +301,51 @@ Keep these in your scratchpad as you progress:
 - `localFixRetries` (count, for the final summary)
 - `prUrl`, `prNumber` (post-stage-6)
 - `wipReason` (only when set)
+
+## Final step — persist the run summary to memory (v0.4)
+
+After the pipeline reaches its terminal state (success OR halted), invoke `tpdc_execute`'s memory tool (or rather: call it via a final lightweight execute step — see below) to write the run summary to `/memories/runs/<runId>.md`. This persists across sessions so the next TPDC run on this repo can see context without re-deriving it.
+
+Actually the cleanest path: persist memory via your last `tpdc_execute` call OR invoke the memory tool indirectly through a final agent turn. If neither is convenient, surface the summary in chat (which you'd do anyway) and note that for v0.5+ we may add a dedicated `tpdc_record_run_event` MCP tool.
+
+Suggested summary file format (`/memories/runs/<runId>.md`):
+
+```markdown
+# TPDC run <runId> — <date>
+
+**Outcome:** success | halted (stage: <stage>)
+**Request:** "<original user request, verbatim>"
+**PR:** <url or "not opened">
+**Final CI:** success | failure | timeout | n/a
+
+## Cost roll-up (visible to TPDC)
+- tpdc_execute: <inputTokens> in / <outputTokens> out (cache read: <X>, cache create: <Y>)
+- tpdc_team_meeting: <inputTokens> in / <outputTokens> out (if fired)
+- Other stages: no LLM usage
+
+## Wall-clock (durations from tool results)
+- Execute: <durationMs / 1000>s
+- Run-tests: <durationMs / 1000>s
+- Push: <durationMs / 1000>s
+- Open-PR: <durationMs / 1000>s
+- Wait-CI: <durationMs / 1000>s
+- Auto-fix-CI iterations: <N>
+
+## Retries
+- Local fix: <N>/<max>
+- CI fix: <N>/<max>
+
+## What shipped
+<1-3 sentence description of the actual change>
+
+## Surprises
+<bullet list of anything notable: scope-creep avoidance, advisor consultations, halts>
+
+## Memory facts updated
+<list any /memories/* files written during this run, e.g., /memories/repo-facts.md additions>
+```
+
+Note: the agent will only have visibility into TPDC's MCP-tool token usage. Claude Code's session token consumption (the cost of running intake/plan/auto-fix-ci as skills) is OUTSIDE TPDC's visibility. Don't fabricate those numbers — say "session burn handled by Claude Code; not surfaced to TPDC" if asked.
 
 ## Example shape of the final summary you present to the user
 

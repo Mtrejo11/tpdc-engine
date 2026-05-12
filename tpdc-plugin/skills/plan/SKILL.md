@@ -4,7 +4,7 @@ description: Convert a validated IntakeArtifact into a typed TPDC PlanArtifact w
 allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_plan_artifact
 metadata:
   author: tpdc
-  version: "0.3"
+  version: "0.4"
 ---
 
 # TPDC Plan
@@ -21,6 +21,10 @@ Decompose a validated intake into a concrete, ordered execution plan. Use the in
 A validated `PlanArtifact` object matching the schema below. Return it to the caller after the MCP validator confirms shape AND semantic invariants (DAG, dependency refs, readiness/steps consistency).
 
 ## Workflow
+
+### 0. Note on memory (v0.4)
+
+If the intake came with `assumptions` referencing repo facts (e.g., "Tailwind primary is bg-emerald-600", "tests run via `bun test`"), trust them — they may have been distilled from prior runs via `/memories/repo-facts.md`. You don't need to re-verify, but if your `Read`/`Grep` exploration contradicts an assumption, flag it as a `blocker` so the executor handles the mismatch.
 
 ### 1. Re-anchor in the repo
 
