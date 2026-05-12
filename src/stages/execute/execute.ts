@@ -57,6 +57,24 @@ const TOOL_ERROR_LIMIT = 5;
  */
 const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 
+/**
+ * Beta flag for context management edits (alpha.8). Enables the
+ * `compact_20260112` edit type, which lets the platform autocompact older
+ * turns into a summary `BetaCompactionBlock` once the input-token trigger
+ * fires. Without this header the `context_management` field in the request
+ * is rejected.
+ */
+const CONTEXT_MANAGEMENT_BETA = "context-management-2025-06-27";
+
+/**
+ * Trigger threshold for compaction (alpha.8). Once the conversation's input
+ * tokens cross this watermark, the platform inserts a summary block that
+ * replaces older turns in-place. Sonnet 4.6's context window is ~200k, so
+ * 120k leaves ~80k of headroom for the post-summary continuation. Adjust if
+ * dogfooding shows we're either hitting it too eagerly or too late.
+ */
+const COMPACTION_TRIGGER_INPUT_TOKENS = 120_000;
+
 // NOTE (alpha.4 hotfix): we previously also sent `memory-tool-2025-08-18` as
 // a conservative beta flag, but the API rejected the request with that header
 // (it does not recognize this exact name). The SDK exposes
@@ -221,6 +239,7 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   let advisorInvocations = 0;
   let webSearchInvocations = 0;
   let webFetchInvocations = 0;
+  let compactionEvents = 0;
   let lastModelId = model;
   let finalSummary = "";
   let status: ExecuteStatus = "max_turns_exceeded";
@@ -243,7 +262,29 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       ],
       messages,
       tools,
-      betas: [ADVISOR_TOOL_BETA],
+      betas: [ADVISOR_TOOL_BETA, CONTEXT_MANAGEMENT_BETA],
+      // Context management (alpha.8). The platform decides when to fire
+      // based on the trigger threshold; when it does, a summary
+      // BetaCompactionBlock replaces older turns in-place and shows up in
+      // response.content. We round-trip the assistant content into
+      // `messages` unchanged below, so compaction blocks persist across
+      // turns automatically — no special handling required.
+      //
+      // pause_after_compaction is intentionally false so the agent loop
+      // continues without an out-of-band stop. We track event counts via
+      // the response.content scan and surface them in usage.compaction.
+      context_management: {
+        edits: [
+          {
+            type: "compact_20260112",
+            trigger: {
+              type: "input_tokens",
+              value: COMPACTION_TRIGGER_INPUT_TOKENS,
+            },
+            pause_after_compaction: false,
+          },
+        ],
+      },
     });
 
     totalIn += response.usage.input_tokens;
@@ -273,6 +314,14 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     // advisor in alpha.5).
     for (const block of response.content) {
       const b = block as { type?: string; name?: string };
+      // Compaction blocks (alpha.8) — emitted when the platform decides the
+      // trigger threshold fired. One block per compaction event. We round-
+      // trip them back through `messages.push(response.content)` below so
+      // the post-summary context is preserved across turns.
+      if (b.type === "compaction") {
+        compactionEvents++;
+        continue;
+      }
       if (b.type !== "server_tool_use" || !b.name) continue;
       if (!COUNTED_SERVER_TOOL_NAMES.has(b.name)) continue;
       if (b.name === "advisor") advisorInvocations++;
@@ -423,6 +472,13 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
         ? {
             webFetch: {
               invocations: webFetchInvocations,
+            },
+          }
+        : {}),
+      ...(compactionEvents > 0
+        ? {
+            compaction: {
+              events: compactionEvents,
             },
           }
         : {}),

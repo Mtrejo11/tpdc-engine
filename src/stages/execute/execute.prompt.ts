@@ -129,6 +129,25 @@ are how TPDC accumulates institutional memory across runs.
 Convention layout: \`/memories/repo-facts.md\` for stable facts, \`/memories/runs/\`
 for per-run summaries, optional \`/memories/README.md\` explaining layout.
 
+## Context compaction (long runs)
+
+If a run grows past the conversation budget, the platform automatically
+summarizes earlier turns into a single \`compaction\` block in-place — older
+tool inputs/outputs become a short summary, the recent turns stay verbatim.
+This happens silently between turns; you may notice a compaction block in
+your view of the conversation.
+
+**What this means for you:**
+
+- Anything you wrote to \`/memories\` survives intact (memory is filesystem,
+  not conversation). That's why writing critical findings to memory promptly
+  matters — if compaction fires, the memory copy is your remaining
+  ground truth.
+- Re-reading a file you read 30 turns ago is cheap (the file is still on
+  disk; the worktree didn't go anywhere). Don't try to reconstruct it from
+  the compacted summary.
+- If you see a compaction block, just keep going. No special handling needed.
+
 ## When to consult the web
 
 \`web_search\` and \`web_fetch\` exist for the case where the repo doesn't

@@ -144,6 +144,24 @@ export interface ExecuteResult {
       /** Count of web_fetch calls summed across all turns of this run. */
       invocations: number;
     };
+    /**
+     * Context compaction events (v0.4.0-alpha.8+).
+     *
+     * Each event is a `BetaCompactionBlock` emitted by the platform when
+     * the input-token trigger fires. The summary block replaces older
+     * turns in-place; we round-trip it back via `messages` so the
+     * post-summary context survives.
+     *
+     * A high `events` count (say, > 1 on a single run) suggests the trigger
+     * threshold is too tight or the task is genuinely beyond the comfort
+     * envelope — worth flagging in the run summary.
+     *
+     * Undefined when no compaction events happened in this run.
+     */
+    compaction?: {
+      /** Count of compaction blocks observed in the response stream. */
+      events: number;
+    };
   };
   /** The model id Anthropic actually served. */
   model: string;
