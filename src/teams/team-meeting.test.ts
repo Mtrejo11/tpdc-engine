@@ -83,13 +83,18 @@ interface MockParseResponse {
   content: unknown[];
 }
 
-function mockResponse(parsed: unknown, tokensIn = 100, tokensOut = 200): MockParseResponse {
+function mockResponse(
+  parsed: unknown,
+  tokensIn = 100,
+  tokensOut = 200,
+  contentBlocks: unknown[] = [],
+): MockParseResponse {
   return {
     parsed_output: parsed,
     usage: { input_tokens: tokensIn, output_tokens: tokensOut },
     model: "claude-sonnet-4-6",
     stop_reason: "end_turn",
-    content: [],
+    content: contentBlocks,
   };
 }
 
@@ -156,8 +161,10 @@ describe("runTeamMeeting", () => {
     expect(client.messages.parse).toHaveBeenCalledTimes(4);
     expect(result.rolesConvened).toEqual(["PM", "TechLead", "Engineer"]);
     expect(result.usage.Designer).toBeUndefined();
-    expect(result.usage.PM).toEqual({ inputTokens: 100, outputTokens: 200 });
-    expect(result.usage.moderator).toEqual({ inputTokens: 500, outputTokens: 400 });
+    // toMatchObject so additive usage fields (alpha.14 thinkingBlocks, etc.)
+    // don't force every assertion to be re-written on schema growth.
+    expect(result.usage.PM).toMatchObject({ inputTokens: 100, outputTokens: 200 });
+    expect(result.usage.moderator).toMatchObject({ inputTokens: 500, outputTokens: 400 });
   });
 
   it("passes role responses to the moderator as user content", async () => {
@@ -203,10 +210,10 @@ describe("runTeamMeeting", () => {
       client: client as any,
     });
 
-    expect(result.usage.PM).toEqual({ inputTokens: 50, outputTokens: 100 });
-    expect(result.usage.TechLead).toEqual({ inputTokens: 60, outputTokens: 110 });
-    expect(result.usage.Engineer).toEqual({ inputTokens: 70, outputTokens: 120 });
-    expect(result.usage.moderator).toEqual({ inputTokens: 300, outputTokens: 250 });
+    expect(result.usage.PM).toMatchObject({ inputTokens: 50, outputTokens: 100 });
+    expect(result.usage.TechLead).toMatchObject({ inputTokens: 60, outputTokens: 110 });
+    expect(result.usage.Engineer).toMatchObject({ inputTokens: 70, outputTokens: 120 });
+    expect(result.usage.moderator).toMatchObject({ inputTokens: 300, outputTokens: 250 });
     expect(result.usage.Designer).toBeUndefined();
   });
 
@@ -401,6 +408,80 @@ describe("runTeamMeeting", () => {
     expect(moderatorCall?.thinking).toEqual({ type: "adaptive" });
     expect(moderatorCall?.output_config?.effort).toBe("max");
     expect(moderatorCall?.max_tokens).toBeGreaterThan(8192);
+  });
+
+  // ── alpha.14: thinking-block count surfaced through usage ──
+
+  it("surfaces thinkingBlocks: { count: 0, hadRedacted: false } on calls with no thinking content", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput()),
+    ]);
+
+    const result = await runTeamMeeting({
+      runId: "team-test-thinkblocks-zero",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    expect(result.usage.PM?.thinkingBlocks).toEqual({ count: 0, hadRedacted: false });
+    expect(result.usage.Engineer?.thinkingBlocks).toEqual({ count: 0, hadRedacted: false });
+    expect(result.usage.moderator.thinkingBlocks).toEqual({ count: 0, hadRedacted: false });
+  });
+
+  it("counts thinking blocks on the moderator when content includes them", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput(), 300, 250, [
+        { type: "thinking", thinking: "let me reason...", signature: "sig1" },
+        { type: "thinking", thinking: "more reasoning...", signature: "sig2" },
+        { type: "text", text: "final synthesis" },
+      ]),
+    ]);
+
+    const result = await runTeamMeeting({
+      runId: "team-test-thinkblocks-counted",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    expect(result.usage.moderator.thinkingBlocks).toEqual({ count: 2, hadRedacted: false });
+    // Role calls had no thinking content; stays zero.
+    expect(result.usage.PM?.thinkingBlocks?.count).toBe(0);
+  });
+
+  it("flags hadRedacted: true when at least one block is redacted_thinking", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput(), 300, 250, [
+        { type: "thinking", thinking: "visible", signature: "s1" },
+        { type: "redacted_thinking", data: "encrypted-redacted-blob" },
+        { type: "text", text: "synthesis" },
+      ]),
+    ]);
+
+    const result = await runTeamMeeting({
+      runId: "team-test-thinkblocks-redacted",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    expect(result.usage.moderator.thinkingBlocks).toEqual({ count: 2, hadRedacted: true });
   });
 });
 

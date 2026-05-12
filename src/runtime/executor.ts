@@ -69,6 +69,26 @@ export interface ExecutorResult<T> {
   usage: {
     inputTokens: number;
     outputTokens: number;
+    /**
+     * Thinking-block accounting (v0.4.0-alpha.14+).
+     *
+     * Counted by scanning the parsed message's `content` for blocks with
+     * `type === "thinking"` (visible reasoning) and `type === "redacted_thinking"`
+     * (reasoning the platform chose not to expose verbatim). The token
+     * cost of those blocks is folded into `outputTokens` by the platform —
+     * we surface the *count* because that's the only signal the SDK exposes,
+     * not because tokens are double-counted.
+     *
+     * Always present on alpha.14+ results (count: 0 when thinking was off
+     * or no blocks were produced). The optional `?` marker is kept for
+     * backward compatibility with results persisted before alpha.14.
+     */
+    thinkingBlocks?: {
+      /** Total `thinking` + `redacted_thinking` blocks observed. */
+      count: number;
+      /** True iff at least one block was `redacted_thinking`. */
+      hadRedacted: boolean;
+    };
   };
   /** The model id Anthropic actually served (may differ from request) */
   model: string;
@@ -115,11 +135,29 @@ export async function runExecutor<S extends ZodType>(
     );
   }
 
+  // Count thinking blocks (alpha.14). `response.content` is the parsed
+  // message's content array; we scan for `thinking` + `redacted_thinking`
+  // entries. The platform folds reasoning tokens into `output_tokens`, so
+  // this is a *block count* signal, not a separate token budget.
+  let thinkingCount = 0;
+  let hadRedacted = false;
+  const content = (response as unknown as { content?: Array<{ type?: string }> }).content;
+  if (Array.isArray(content)) {
+    for (const block of content) {
+      if (block?.type === "thinking") thinkingCount++;
+      else if (block?.type === "redacted_thinking") {
+        thinkingCount++;
+        hadRedacted = true;
+      }
+    }
+  }
+
   return {
     output: response.parsed_output as zInfer<S>,
     usage: {
       inputTokens: response.usage.input_tokens,
       outputTokens: response.usage.output_tokens,
+      thinkingBlocks: { count: thinkingCount, hadRedacted },
     },
     model: response.model,
     stopReason: response.stop_reason,

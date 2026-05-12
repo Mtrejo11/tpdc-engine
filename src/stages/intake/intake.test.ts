@@ -69,7 +69,9 @@ describe("runIntake", () => {
 
     expect(result.runId).toBe("test-2");
     expect(result.artifact).toEqual(fakeArtifact);
-    expect(result.usage).toEqual({ inputTokens: 100, outputTokens: 200 });
+    // toMatchObject so additive usage fields (alpha.14 thinkingBlocks etc.)
+    // don't force every stage test to be re-written on schema growth.
+    expect(result.usage).toMatchObject({ inputTokens: 100, outputTokens: 200 });
     expect(result.model).toBe("claude-sonnet-4-6");
     expect(client.messages.parse).toHaveBeenCalledOnce();
   });

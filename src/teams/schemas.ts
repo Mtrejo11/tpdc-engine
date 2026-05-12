@@ -213,6 +213,22 @@ export type ModeratorOutput = z.infer<typeof ModeratorOutputSchema>;
 const UsageSchema = z.object({
   inputTokens: z.number().int().nonnegative(),
   outputTokens: z.number().int().nonnegative(),
+  /**
+   * Thinking-block observation (alpha.14+).
+   *
+   * `count` is the total of `thinking` + `redacted_thinking` blocks emitted
+   * during the call. `hadRedacted` is true iff at least one block was
+   * `redacted_thinking` (the platform chose not to expose the reasoning
+   * verbatim). Always present on results produced by `runExecutor` on
+   * alpha.14+; older persisted results may lack it — hence the
+   * `optional()`.
+   */
+  thinkingBlocks: z
+    .object({
+      count: z.number().int().nonnegative(),
+      hadRedacted: z.boolean(),
+    })
+    .optional(),
 });
 export type TeamUsage = z.infer<typeof UsageSchema>;
 

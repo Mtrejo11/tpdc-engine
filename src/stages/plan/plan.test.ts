@@ -124,7 +124,9 @@ describe("runPlan", () => {
 
     expect(result.runId).toBe("test-3");
     expect(result.artifact).toEqual(fakePlan);
-    expect(result.usage).toEqual({ inputTokens: 500, outputTokens: 800 });
+    // toMatchObject so additive usage fields (alpha.14 thinkingBlocks etc.)
+    // don't force every stage test to be re-written on schema growth.
+    expect(result.usage).toMatchObject({ inputTokens: 500, outputTokens: 800 });
     expect(result.model).toBe("claude-sonnet-4-6");
     expect(client.messages.parse).toHaveBeenCalledOnce();
 
