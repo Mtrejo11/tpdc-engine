@@ -307,6 +307,101 @@ describe("runTeamMeeting", () => {
     ).rejects.toThrow(/openQuestions must not be empty/);
     expect(client.messages.parse).not.toHaveBeenCalled();
   });
+
+  // ── alpha.12: extended thinking on the moderator ──
+
+  it("enables adaptive thinking on the moderator call by default (effort high)", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput()),
+    ]);
+
+    await runTeamMeeting({
+      runId: "team-test-thinking-default",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    // 0,1 are role calls; 2 is moderator.
+    const moderatorCall = client.messages.parse.mock.calls[2]?.[0];
+    expect(moderatorCall?.thinking).toEqual({ type: "adaptive" });
+    expect(moderatorCall?.output_config?.effort).toBe("high");
+    expect(moderatorCall?.max_tokens).toBeGreaterThan(2048);
+  });
+
+  it("does NOT enable thinking on the role calls (parallel calls stay cheap)", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput()),
+    ]);
+
+    await runTeamMeeting({
+      runId: "team-test-thinking-roles",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    const pmCall = client.messages.parse.mock.calls[0]?.[0];
+    const engineerCall = client.messages.parse.mock.calls[1]?.[0];
+    expect(pmCall?.thinking).toBeUndefined();
+    expect(engineerCall?.thinking).toBeUndefined();
+  });
+
+  it("disables thinking when moderatorThinkingBudget === 0", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput()),
+    ]);
+
+    await runTeamMeeting({
+      runId: "team-test-thinking-off",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      moderatorThinkingBudget: 0,
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    const moderatorCall = client.messages.parse.mock.calls[2]?.[0];
+    expect(moderatorCall?.thinking).toBeUndefined();
+  });
+
+  it("respects custom moderatorThinkingBudget via output effort + max_tokens", async () => {
+    const client = makeMockClient([
+      mockResponse(makeRoleResponse("PM")),
+      mockResponse(makeRoleResponse("Engineer")),
+      mockResponse(makeModeratorOutput()),
+    ]);
+
+    await runTeamMeeting({
+      runId: "team-test-thinking-custom",
+      originalRequest: "X",
+      intakeSoFar: intake,
+      openQuestions,
+      rolesToConvene: ["PM", "Engineer"],
+      moderatorThinkingBudget: 8192,
+      // biome-ignore lint/suspicious/noExplicitAny: typed mock
+      client: client as any,
+    });
+
+    const moderatorCall = client.messages.parse.mock.calls[2]?.[0];
+    expect(moderatorCall?.thinking).toEqual({ type: "adaptive" });
+    expect(moderatorCall?.output_config?.effort).toBe("max");
+    expect(moderatorCall?.max_tokens).toBeGreaterThan(8192);
+  });
 });
 
 // ── Designer auto-skip heuristic ─────────────────────────────────────

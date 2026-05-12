@@ -20,6 +20,10 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import type {
+  OutputConfig,
+  ThinkingConfigParam,
+} from "@anthropic-ai/sdk/resources/messages/messages.js";
 import type { ZodType, infer as zInfer } from "zod";
 
 export const DEFAULT_EXECUTOR_MODEL = "claude-sonnet-4-6";
@@ -42,6 +46,22 @@ export interface ExecutorRequest<S extends ZodType> {
   maxTokens?: number;
   /** Optional client override (for tests). */
   client?: Anthropic;
+  /**
+   * Optional extended-thinking configuration (v0.4.0-alpha.12+).
+   *
+   * For current Opus / Sonnet 4.x models the API expects
+   * `{ type: "adaptive" }` plus `thinkingOutputEffort` (mapped into
+   * `output_config.effort`), not legacy `{ type: "enabled", budget_tokens }`.
+   *
+   * Use sparingly on one-shot steps (e.g. team-meeting moderator), not
+   * per-turn agent loops.
+   */
+  thinking?: ThinkingConfigParam;
+  /**
+   * When `thinking.type` is `"adaptive"`, merged into `output_config.effort`
+   * alongside the Zod `format`. Ignored for other thinking shapes.
+   */
+  thinkingOutputEffort?: NonNullable<OutputConfig["effort"]>;
 }
 
 export interface ExecutorResult<T> {
@@ -71,6 +91,11 @@ export async function runExecutor<S extends ZodType>(
   const model = req.model ?? DEFAULT_EXECUTOR_MODEL;
   const maxTokens = req.maxTokens ?? DEFAULT_MAX_TOKENS;
 
+  const outputEffort =
+    req.thinking?.type === "adaptive"
+      ? (req.thinkingOutputEffort ?? "high")
+      : undefined;
+
   const response = await client.messages.parse({
     model,
     max_tokens: maxTokens,
@@ -78,7 +103,9 @@ export async function runExecutor<S extends ZodType>(
     messages: [{ role: "user", content: req.userInput }],
     output_config: {
       format: zodOutputFormat(req.outputSchema),
+      ...(outputEffort != null ? { effort: outputEffort } : {}),
     },
+    ...(req.thinking ? { thinking: req.thinking } : {}),
   });
 
   if (response.parsed_output == null) {

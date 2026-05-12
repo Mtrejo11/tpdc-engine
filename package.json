@@ -1,6 +1,6 @@
 {
   "name": "tpdc-engine",
-  "version": "0.4.0-alpha.11",
+  "version": "0.4.0-alpha.12",
   "description": "Autonomous development workflow engine — request to PR with CI green. Shipped as Claude Code plugin + MCP server.",
   "type": "module",
   "main": "dist/index.js",

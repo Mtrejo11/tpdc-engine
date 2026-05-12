@@ -47,6 +47,36 @@ import {
 
 // ── Public API ──────────────────────────────────────────────────────
 
+/**
+ * Default “thinking budget” knob for the moderator (v0.4.0-alpha.12+).
+ *
+ * The Anthropic API no longer accepts `thinking.type: "enabled"` on Opus
+ * 4.7; it expects `thinking.type: "adaptive"` with `output_config.effort`.
+ * We keep this numeric knob as a **proxy**: it maps to `effort` (and
+ * still scales `max_tokens` for headroom on large moderator JSON).
+ *
+ * Role agents stay no-thinking — each role is one opinionated response,
+ * and we run 2-4 in parallel where extra reasoning would multiply cost.
+ *
+ * Set `moderatorThinkingBudget: 0` to disable.
+ */
+const DEFAULT_MODERATOR_THINKING_BUDGET = 2048;
+
+/** Maps the legacy budget dial to the platform's `output_config.effort`. */
+function moderatorBudgetToOutputEffort(
+  budget: number,
+): "low" | "medium" | "high" | "max" {
+  if (budget >= 6144) return "max";
+  if (budget >= 2048) return "high";
+  return "medium";
+}
+
+/**
+ * Moderator `max_tokens` floor when adaptive thinking is on — generous
+ * ceiling for structured moderator JSON, independent of effort mapping.
+ */
+const MODERATOR_THINKING_MAX_TOKENS_FLOOR = 4096;
+
 export interface RunTeamMeetingOptions extends TeamMeetingInput {
   /** Override Anthropic client (tests). */
   client?: Anthropic;
@@ -54,6 +84,18 @@ export interface RunTeamMeetingOptions extends TeamMeetingInput {
   roleModel?: string;
   /** Model for the moderator. Defaults to Opus 4.6 (D6). */
   moderatorModel?: string;
+  /**
+   * Thinking intensity dial for the moderator (alpha.12+).
+   *
+   * - `undefined` (default) → `DEFAULT_MODERATOR_THINKING_BUDGET` (maps to
+   *   adaptive thinking + `output_config.effort` via
+   *   `moderatorBudgetToOutputEffort`).
+   * - `0` → no extended thinking on the moderator call.
+   * - any value `> 0` → adaptive thinking on; larger values map to higher
+   *   `effort` (`medium` / `high` / `max`). `max_tokens` is bumped for
+   *   output headroom.
+   */
+  moderatorThinkingBudget?: number;
 }
 
 /**
@@ -97,17 +139,30 @@ export async function runTeamMeeting(
 
   const roleResults = await Promise.all(rolePromises);
 
-  // 2. Moderator synthesis
+  // 2. Moderator synthesis (alpha.12: extended thinking by default).
   const moderatorUserInput = buildModeratorUserInput(
     opts,
     roleResults.map((r) => r.response),
   );
+  const moderatorThinkingBudget =
+    opts.moderatorThinkingBudget ?? DEFAULT_MODERATOR_THINKING_BUDGET;
+  const moderatorMaxTokens =
+    moderatorThinkingBudget > 0
+      ? Math.max(MODERATOR_THINKING_MAX_TOKENS_FLOOR, moderatorThinkingBudget * 2)
+      : undefined;
   const moderatorResult = await runExecutor({
     systemPrompt: MODERATOR_SYSTEM_PROMPT,
     userInput: moderatorUserInput,
     outputSchema: ModeratorOutputSchema,
     model: moderatorModel,
     client,
+    ...(moderatorMaxTokens !== undefined ? { maxTokens: moderatorMaxTokens } : {}),
+    ...(moderatorThinkingBudget > 0
+      ? {
+          thinking: { type: "adaptive" as const },
+          thinkingOutputEffort: moderatorBudgetToOutputEffort(moderatorThinkingBudget),
+        }
+      : {}),
   });
 
   // 3. Build the final result
