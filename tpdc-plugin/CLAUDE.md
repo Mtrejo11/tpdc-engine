@@ -1,6 +1,6 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** **v0.4.0-alpha.2** — v0.4 chapter adds: **prompt caching** (alpha.0), **memory tool** (alpha.1), **observability via memory** (alpha.2). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** **v0.4.0-alpha.3** — v0.4 chapter adds: **prompt caching** (alpha.0), **memory tool** (alpha.1), **observability via memory** (alpha.2), **advisor instrumentation** (alpha.3). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
 

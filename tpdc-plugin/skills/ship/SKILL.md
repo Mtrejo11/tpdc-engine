@@ -319,7 +319,10 @@ Suggested summary file format (`/memories/runs/<runId>.md`):
 **Final CI:** success | failure | timeout | n/a
 
 ## Cost roll-up (visible to TPDC)
-- tpdc_execute: <inputTokens> in / <outputTokens> out (cache read: <X>, cache create: <Y>)
+- tpdc_execute: <inputTokens> in / <outputTokens> out
+  - cache read: <cacheReadInputTokens>, cache create: <cacheCreationInputTokens>
+  - advisor invocations: <usage.advisor.invocations or 0>
+  - advisor tokens: <usage.advisor.inputTokens> in / <usage.advisor.outputTokens> out
 - tpdc_team_meeting: <inputTokens> in / <outputTokens> out (if fired)
 - Other stages: no LLM usage
 

@@ -144,6 +144,9 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   let totalOut = 0;
   let cacheCreationIn = 0;
   let cacheReadIn = 0;
+  let advisorInvocations = 0;
+  let advisorInputTokens = 0;
+  let advisorOutputTokens = 0;
   let lastModelId = model;
   let finalSummary = "";
   let status: ExecuteStatus = "max_turns_exceeded";
@@ -171,17 +174,35 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
 
     totalIn += response.usage.input_tokens;
     totalOut += response.usage.output_tokens;
-    // Cache usage tracking. The SDK exposes these on usage when prompt
-    // caching is active. Both default to 0 when the response had no cache
-    // interaction (e.g., a one-turn run or pre-cache code path).
+    // Cache + advisor sub-inference accounting. The SDK exposes these on
+    // usage when the corresponding features fire. Defaults to zero / empty
+    // when not present (e.g., a one-turn run or pre-cache code path).
     const u = response.usage as {
       input_tokens: number;
       output_tokens: number;
       cache_creation_input_tokens?: number;
       cache_read_input_tokens?: number;
+      iterations?: Array<{
+        type?: string;
+        input_tokens?: number;
+        output_tokens?: number;
+      }> | null;
     };
     cacheCreationIn += u.cache_creation_input_tokens ?? 0;
     cacheReadIn += u.cache_read_input_tokens ?? 0;
+    // Per turn, iterations[] is the list of sub-inferences the platform ran.
+    // Message-type entries are advisor calls (today's only producer); if we
+    // ever add web search/fetch as server tools, they surface as their own
+    // types and would not increment advisorInvocations.
+    if (Array.isArray(u.iterations)) {
+      for (const iter of u.iterations) {
+        if (iter?.type === "message") {
+          advisorInvocations++;
+          advisorInputTokens += iter.input_tokens ?? 0;
+          advisorOutputTokens += iter.output_tokens ?? 0;
+        }
+      }
+    }
     lastModelId = response.model;
 
     // Append assistant message
@@ -304,10 +325,19 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     usage: {
       inputTokens: totalIn,
       outputTokens: totalOut,
-      // Only surface cache fields when they're non-zero; keeps the JSON
-      // clean for pre-cache callers reading the result.
+      // Only surface optional fields when they're non-zero; keeps the JSON
+      // clean for pre-cache, pre-advisor callers reading the result.
       ...(cacheCreationIn > 0 ? { cacheCreationInputTokens: cacheCreationIn } : {}),
       ...(cacheReadIn > 0 ? { cacheReadInputTokens: cacheReadIn } : {}),
+      ...(advisorInvocations > 0
+        ? {
+            advisor: {
+              invocations: advisorInvocations,
+              inputTokens: advisorInputTokens,
+              outputTokens: advisorOutputTokens,
+            },
+          }
+        : {}),
     },
     model: lastModelId,
   };

@@ -97,6 +97,22 @@ export interface ExecuteResult {
      * 0.1x base input rate — this is where the savings live.
      */
     cacheReadInputTokens?: number;
+    /**
+     * Advisor sub-inference accounting (v0.4.0-alpha.3+). Derived from the
+     * platform's `usage.iterations` array — message-type iterations within
+     * a turn are server-side advisor calls. Today this is the only producer
+     * of message iterations in our setup; if we later add web-search /
+     * web-fetch they'd surface under their own fields, not this one.
+     * Undefined when no advisor invocations happened.
+     */
+    advisor?: {
+      /** Count of advisor calls summed across all turns of this run. */
+      invocations: number;
+      /** Sum of input tokens charged to advisor sub-inferences. */
+      inputTokens: number;
+      /** Sum of output tokens produced by advisor sub-inferences. */
+      outputTokens: number;
+    };
   };
   /** The model id Anthropic actually served. */
   model: string;
