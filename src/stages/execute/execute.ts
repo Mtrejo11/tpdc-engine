@@ -33,6 +33,7 @@ import type {
 
 import { DEFAULT_ADVISOR_MODEL, DEFAULT_EXECUTOR_MODEL } from "../../runtime/executor.js";
 import { runBashTool } from "./tools/bash.js";
+import { runMemoryTool, type MemoryToolInput } from "./tools/memory.js";
 import { runTextEditorTool } from "./tools/text-editor.js";
 import type { ExecuteRequest, ExecuteResult, ExecuteStatus, FailureContext } from "./execute.schema.js";
 import { EXECUTE_FIX_MODE_ADDENDUM, EXECUTE_SYSTEM_PROMPT } from "./execute.prompt.js";
@@ -56,6 +57,14 @@ const TOOL_ERROR_LIMIT = 5;
  */
 const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 
+/**
+ * Beta flag for the memory tool. Set conservatively — the SDK exposes
+ * `BetaMemoryTool20250818` in its typed union, but the API may still gate
+ * the runtime behavior on this header. If the platform later ungates,
+ * removing this flag is a one-line change.
+ */
+const MEMORY_TOOL_BETA = "memory-tool-2025-08-18";
+
 /** Cap advisor invocations per execute run to bound cost. */
 const DEFAULT_ADVISOR_MAX_USES = 5;
 
@@ -71,7 +80,11 @@ const DEFAULT_ADVISOR_MAX_USES = 5;
 const PROMPT_CACHE_CONTROL = { type: "ephemeral" as const };
 
 /** Client-side tool names we know how to dispatch. Advisor is server-side and excluded. */
-const CLIENT_SIDE_TOOL_NAMES = new Set(["bash", "str_replace_based_edit_tool"]);
+const CLIENT_SIDE_TOOL_NAMES = new Set([
+  "bash",
+  "str_replace_based_edit_tool",
+  "memory",
+]);
 
 /** Lightweight tool-call event used for mid-flight observability. */
 export interface ToolCallEvent {
@@ -153,7 +166,7 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       ],
       messages,
       tools,
-      betas: [ADVISOR_TOOL_BETA],
+      betas: [ADVISOR_TOOL_BETA, MEMORY_TOOL_BETA],
     });
 
     totalIn += response.usage.input_tokens;
@@ -222,7 +235,7 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
         }
       }
 
-      const handlerResult = await dispatchTool(tu, handle.path);
+      const handlerResult = await dispatchTool(tu, handle.path, opts.repoRoot);
 
       if (handlerResult.isError) {
         consecutiveToolErrors++;
@@ -382,7 +395,11 @@ interface ToolHandlerResult {
   isError: boolean;
 }
 
-async function dispatchTool(tu: BetaToolUseBlock, worktreePath: string): Promise<ToolHandlerResult> {
+async function dispatchTool(
+  tu: BetaToolUseBlock,
+  worktreePath: string,
+  repoRoot: string,
+): Promise<ToolHandlerResult> {
   switch (tu.name) {
     case "bash":
       return runBashTool(tu.input as { command: string; description?: string }, { worktreePath });
@@ -391,11 +408,13 @@ async function dispatchTool(tu: BetaToolUseBlock, worktreePath: string): Promise
         tu.input as Parameters<typeof runTextEditorTool>[0],
         { worktreePath },
       );
+    case "memory":
+      return runMemoryTool(tu.input as MemoryToolInput, { repoRoot });
     default:
       // Should be unreachable — the loop filters tool_uses by client-side names
       // before dispatching. If we land here, the filter is out of sync.
       return {
-        content: `Error: unknown client-side tool "${tu.name}". Expected bash or str_replace_based_edit_tool.`,
+        content: `Error: unknown client-side tool "${tu.name}". Expected bash, str_replace_based_edit_tool, or memory.`,
         isError: true,
       };
   }
@@ -409,6 +428,12 @@ interface ToolDefOpts {
 /**
  * Build the tool definitions passed to the beta messages API.
  *
+ * Tools (in send order): bash, text_editor, memory, advisor.
+ *
+ * Memory is server-spec'd but client-dispatched — the platform routes
+ * tool_use blocks to us; we read/write the local `/memories` directory.
+ * Advisor is fully server-side (the platform calls Opus 4.7 for us).
+ *
  * The LAST tool carries `cache_control` so the entire tools block becomes
  * part of the cached prefix (the platform applies cache_control transitively
  * to everything above the marked block). Paired with the system-prompt
@@ -416,7 +441,8 @@ interface ToolDefOpts {
  * the (system + tools) prefix that gets re-read every turn at 0.1x base
  * input rate.
  *
- * Exported for unit-testing the advisor + cache wiring without an end-to-end run.
+ * Exported for unit-testing the advisor + memory + cache wiring without an
+ * end-to-end run.
  */
 export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
   return [
@@ -429,11 +455,19 @@ export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
       name: "str_replace_based_edit_tool",
     } as unknown as BetaToolUnion,
     {
+      // Memory tool — typed in SDK 0.78's BetaToolUnion (no cast needed).
+      // Client implements the file-system ops; the platform routes
+      // tool_use blocks with one of the 6 commands (view/create/...).
+      type: "memory_20250818",
+      name: "memory",
+    },
+    {
       // Advisor tool — server-side sub-inference. SDK 0.78 predates this beta,
       // so the cast is necessary. The API accepts it because we set
       // `betas: ['advisor-tool-2026-03-01']` on the request.
       // cache_control here marks the END of the prefix block; everything
-      // above (bash + text_editor + advisor itself) becomes one cache entry.
+      // above (bash + text_editor + memory + advisor itself) becomes one
+      // cache entry.
       type: "advisor_20260301",
       name: "advisor",
       model: opts.advisorModel,

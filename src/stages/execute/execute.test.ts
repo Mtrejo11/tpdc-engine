@@ -16,9 +16,9 @@ import { buildToolDefinitions } from "./execute.js";
 describe("buildToolDefinitions", () => {
   const opts = { advisorModel: "claude-opus-4-7", advisorMaxUses: 5 };
 
-  it("returns exactly 3 tools (bash + text_editor + advisor)", () => {
+  it("returns exactly 4 tools (bash + text_editor + memory + advisor)", () => {
     const tools = buildToolDefinitions(opts);
-    expect(tools).toHaveLength(3);
+    expect(tools).toHaveLength(4);
   });
 
   it("includes the bash tool with the platform-canonical type tag", () => {
@@ -58,7 +58,14 @@ describe("buildToolDefinitions", () => {
   it("places client-side tools first, advisor last (no functional reason but stable for snapshots)", () => {
     const tools = buildToolDefinitions(opts);
     const names = tools.map((t) => (t as { name: string }).name);
-    expect(names).toEqual(["bash", "str_replace_based_edit_tool", "advisor"]);
+    expect(names).toEqual(["bash", "str_replace_based_edit_tool", "memory", "advisor"]);
+  });
+
+  it("includes the memory tool with the platform-canonical type tag", () => {
+    const tools = buildToolDefinitions(opts);
+    const memory = tools.find((t) => (t as { name: string }).name === "memory");
+    expect(memory).toBeDefined();
+    expect((memory as { type: string }).type).toBe("memory_20250818");
   });
 
   it("marks ONLY the last tool with cache_control: ephemeral (prefix caching marker)", () => {
@@ -66,9 +73,10 @@ describe("buildToolDefinitions", () => {
     const cacheControls = tools.map(
       (t) => (t as { cache_control?: { type: string } }).cache_control,
     );
-    // First two should have NO cache_control; the last (advisor) carries it.
+    // First three should have NO cache_control; the last (advisor) carries it.
     expect(cacheControls[0]).toBeUndefined();
     expect(cacheControls[1]).toBeUndefined();
-    expect(cacheControls[2]).toEqual({ type: "ephemeral" });
+    expect(cacheControls[2]).toBeUndefined();
+    expect(cacheControls[3]).toEqual({ type: "ephemeral" });
   });
 });
