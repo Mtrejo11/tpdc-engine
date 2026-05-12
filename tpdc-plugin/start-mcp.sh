@@ -1,16 +1,24 @@
 #!/bin/bash
-# TPDC MCP server launcher — resolves engine root from this script (tpdc-plugin/ → repo root).
-# Avoids hardcoding ~/.claude/... so marketplace copies and dev checkouts both work.
+# TPDC MCP server launcher — resolves engine root (monorepo) vs Claude plugin cache (often tpdc-plugin only).
+# Claude expands ${CLAUDE_PLUGIN_ROOT} in .mcp.json; use TPDC_ENGINE_ROOT when dist/ lives outside the cache.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+if [ -n "${TPDC_ENGINE_ROOT:-}" ] && [ -f "${TPDC_ENGINE_ROOT}/dist/mcp/server.js" ]; then
+  ENGINE_ROOT="$TPDC_ENGINE_ROOT"
+else
+  ENGINE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 
 if [ ! -d "$ENGINE_ROOT/node_modules" ]; then
   (cd "$ENGINE_ROOT" && npm install --production --silent 2>/dev/null) || true
 fi
 
 if [ ! -f "$ENGINE_ROOT/dist/mcp/server.js" ]; then
-  echo "tpdc start-mcp: missing $ENGINE_ROOT/dist/mcp/server.js — run: cd \"$ENGINE_ROOT\" && npm install && npm run build" >&2
+  echo "tpdc start-mcp: missing $ENGINE_ROOT/dist/mcp/server.js" >&2
+  echo "  Fix: cd your tpdc-engine clone && npm install && npm run build" >&2
+  echo "  If the plugin cache only has tpdc-plugin/ (no dist/), export TPDC_ENGINE_ROOT to that clone before starting Claude Code, e.g.:" >&2
+  echo "    export TPDC_ENGINE_ROOT=$HOME/Documents/Personal/tpdc-engine" >&2
   exit 1
 fi
 

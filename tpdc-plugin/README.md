@@ -8,6 +8,7 @@ AI-powered development workflow engine with structured pipelines for feature dev
 - Node.js 20+
 - The TPDC engine must be built before the plugin can function
 - **Anthropic API key** for `tpdc_execute` and `tpdc_team_meeting` (direct API calls; not the same as your Claude Code subscription). The MCP launcher (`start-mcp.sh`) loads, in order: `~/.config/tpdc/env` then `<engine-root>/.env` (gitignored). Use `ANTHROPIC_API_KEY=sk-ant-...` lines there — do not paste secrets into committed `.mcp.json`.
+- **`TPDC_ENGINE_ROOT` (optional)** — Claude installs the plugin under `~/.claude/plugins/cache/...` and often **only** copies `tpdc-plugin/`, which does **not** include the compiled `dist/` from the monorepo root. If MCP fails with “missing …/dist/mcp/server.js”, either: (1) `export TPDC_ENGINE_ROOT=/absolute/path/to/tpdc-engine` in the same environment you use to launch Claude Code, then restart; or (2) run `npm run build` in your clone and copy `dist/` into the plugin cache path (fragile). Easiest is (1).
 
 ## Installation
 

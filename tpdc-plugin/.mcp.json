@@ -1,10 +1,7 @@
 {
   "tpdc": {
     "command": "bash",
-    "args": [
-      "-c",
-      "exec \"$HOME/.claude/plugins/marketplaces/tpdc/tpdc-plugin/start-mcp.sh\""
-    ],
+    "args": ["${CLAUDE_PLUGIN_ROOT}/start-mcp.sh"],
     "env": {
       "TPDC_ADAPTER": "cli",
       "NODE_NO_WARNINGS": "1"
