@@ -57,13 +57,14 @@ const TOOL_ERROR_LIMIT = 5;
  */
 const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 
-/**
- * Beta flag for the memory tool. Set conservatively — the SDK exposes
- * `BetaMemoryTool20250818` in its typed union, but the API may still gate
- * the runtime behavior on this header. If the platform later ungates,
- * removing this flag is a one-line change.
- */
-const MEMORY_TOOL_BETA = "memory-tool-2025-08-18";
+// NOTE (alpha.4 hotfix): we previously also sent `memory-tool-2025-08-18` as
+// a conservative beta flag, but the API rejected the request with that header
+// (it does not recognize this exact name). The SDK exposes
+// `BetaMemoryTool20250818` in its typed BetaToolUnion, and the API accepts
+// the tool itself without an explicit beta header — so we just rely on the
+// tool definition in the tools array and skip the header.
+// If a future API version starts requiring a memory-specific beta header,
+// add it back here and to the `betas` list on the request.
 
 /** Cap advisor invocations per execute run to bound cost. */
 const DEFAULT_ADVISOR_MAX_USES = 5;
@@ -169,7 +170,7 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       ],
       messages,
       tools,
-      betas: [ADVISOR_TOOL_BETA, MEMORY_TOOL_BETA],
+      betas: [ADVISOR_TOOL_BETA],
     });
 
     totalIn += response.usage.input_tokens;
