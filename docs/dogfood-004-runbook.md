@@ -39,7 +39,7 @@ cd ~/Documents/Personal/tpdc-engine
 # Either: link a local marketplace, or copy the plugin dir to Claude Code's plugins location.
 # Exact command depends on Claude Code's version — see its docs.
 # Typical pattern (subject to change):
-#   /plugin marketplace add /path/to/tpdc-engine/tpdc-plugin/.claude-plugin/marketplace.json
+#   /plugin marketplace add /path/to/tpdc-engine   (repo root only — do not pass marketplace.json)
 #   /plugin install tpdc
 ```
 

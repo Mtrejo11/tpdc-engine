@@ -22,7 +22,7 @@ npm run build
 
 ### 2. Add the marketplace to Claude Code
 
-Inside Claude Code, run:
+Inside Claude Code, add the **repository directory** (not `marketplace.json`). Using a path that ends in `.json` can break path resolution in Claude Code and produce bogus paths like `tpdc-plugin/tpdc-plugin`.
 
 ```
 /plugin marketplace add /absolute/path/to/tpdc-engine
