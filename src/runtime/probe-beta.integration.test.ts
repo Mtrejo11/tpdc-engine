@@ -108,4 +108,55 @@ describe.skipIf(skipIfNoApi)("beta capability probes (real API)", () => {
     },
     PROBE_TIMEOUT_MS,
   );
+
+  // ── alpha.13: code execution sandbox reconnaissance ──
+  //
+  // Goal: confirm the API accepts the code_execution_20260120 tool with
+  // the code-execution-2025-05-22 beta header. This is recon-only — we're
+  // NOT wiring code execution into the agent loop in alpha.13. Decision
+  // on whether to build a `tpdc_run_tests_in_sandbox` MCP tool depends on
+  // these probe outcomes + the recon doc at docs/code-execution-recon.md.
+
+  it(
+    "code_execution_20260120 tool is accepted on Sonnet 4.6 with the code-execution beta header",
+    async () => {
+      const result = await probeBetaConfig({
+        model: "claude-sonnet-4-6",
+        betas: ["code-execution-2025-05-22"],
+        tools: [
+          {
+            type: "code_execution_20260120",
+            name: "code_execution",
+          } as unknown as never,
+        ],
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) {
+        // eslint-disable-next-line no-console
+        console.error("code_execution probe rejection:", result.error, "status:", result.status);
+      }
+    },
+    PROBE_TIMEOUT_MS,
+  );
+
+  it(
+    "older code_execution_20250825 variant is also accepted (fallback option for older Sonnet)",
+    async () => {
+      // Useful to know if the gVisor-checkpointed 20260120 isn't available
+      // for some models; older variant has no REPL persistence but covers
+      // single-call sandbox execution.
+      const result = await probeBetaConfig({
+        model: "claude-sonnet-4-6",
+        betas: ["code-execution-2025-05-22"],
+        tools: [
+          {
+            type: "code_execution_20250825",
+            name: "code_execution",
+          } as unknown as never,
+        ],
+      });
+      expect(result.ok).toBe(true);
+    },
+    PROBE_TIMEOUT_MS,
+  );
 });
