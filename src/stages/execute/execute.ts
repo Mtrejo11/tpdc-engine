@@ -70,6 +70,21 @@ const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 const DEFAULT_ADVISOR_MAX_USES = 5;
 
 /**
+ * Caps for the web tools (alpha.7). These are intentionally low — the agent
+ * should reach for them only when the repo doesn't carry the info it needs
+ * (library docs, API references, recent changes). The platform charges for
+ * search results and fetched page content, so cheap-by-default keeps runs
+ * predictable.
+ *
+ * `web_search`: each call returns multiple result links; one call usually
+ * suffices to ground a question.
+ * `web_fetch`: the agent may follow a search result, then a second linked
+ * doc — 5 is enough headroom without inviting browsing-style use.
+ */
+const DEFAULT_WEB_SEARCH_MAX_USES = 3;
+const DEFAULT_WEB_FETCH_MAX_USES = 5;
+
+/**
  * Derive a human-readable branch name from the intake title.
  *
  * `tpdc/run-ship-20260511-234802-79c23c` is correct but unreadable in PR
@@ -111,11 +126,26 @@ export function buildBranchName(intakeTitle: string, runId: string): string {
  */
 const PROMPT_CACHE_CONTROL = { type: "ephemeral" as const };
 
-/** Client-side tool names we know how to dispatch. Advisor is server-side and excluded. */
+/**
+ * Client-side tool names we know how to dispatch. Server-side tools (advisor,
+ * web_search, web_fetch) are deliberately excluded — the platform handles
+ * their invocation and emits `server_tool_use` blocks we don't dispatch.
+ */
 const CLIENT_SIDE_TOOL_NAMES = new Set([
   "bash",
   "str_replace_based_edit_tool",
   "memory",
+]);
+
+/**
+ * Server-side tool names whose `server_tool_use` blocks we count for
+ * observability. The advisor counter is separate (legacy alpha.5 wiring);
+ * web tool counts join the usage struct as of alpha.7.
+ */
+const COUNTED_SERVER_TOOL_NAMES = new Set([
+  "advisor",
+  "web_search",
+  "web_fetch",
 ]);
 
 /** Lightweight tool-call event used for mid-flight observability. */
@@ -134,6 +164,10 @@ interface RunExecuteOptions extends ExecuteRequest {
   advisorModel?: string;
   /** Cap on advisor invocations per execute run. Default 5. */
   advisorMaxUses?: number;
+  /** Cap on web_search invocations per execute run. Default 3. */
+  webSearchMaxUses?: number;
+  /** Cap on web_fetch invocations per execute run. Default 5. */
+  webFetchMaxUses?: number;
   /**
    * Optional callback fired before each client-side tool invocation. Used by
    * orchestrators to surface mid-flight progress. Errors thrown by the
@@ -151,6 +185,8 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   const maxTurns = opts.maxTurns ?? DEFAULT_MAX_TURNS;
   const advisorModel = opts.advisorModel ?? DEFAULT_ADVISOR_MODEL;
   const advisorMaxUses = opts.advisorMaxUses ?? DEFAULT_ADVISOR_MAX_USES;
+  const webSearchMaxUses = opts.webSearchMaxUses ?? DEFAULT_WEB_SEARCH_MAX_USES;
+  const webFetchMaxUses = opts.webFetchMaxUses ?? DEFAULT_WEB_FETCH_MAX_USES;
   const fixMode = opts.failureContext != null;
 
   // 1. Create or reuse worktree
@@ -169,7 +205,12 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   const userInput = buildUserInput(opts, handle);
 
   const messages: BetaMessageParam[] = [{ role: "user", content: userInput }];
-  const tools = buildToolDefinitions({ advisorModel, advisorMaxUses });
+  const tools = buildToolDefinitions({
+    advisorModel,
+    advisorMaxUses,
+    webSearchMaxUses,
+    webFetchMaxUses,
+  });
 
   let toolCallCount = 0;
   let consecutiveToolErrors = 0;
@@ -178,6 +219,8 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   let cacheCreationIn = 0;
   let cacheReadIn = 0;
   let advisorInvocations = 0;
+  let webSearchInvocations = 0;
+  let webFetchInvocations = 0;
   let lastModelId = model;
   let finalSummary = "";
   let status: ExecuteStatus = "max_turns_exceeded";
@@ -215,20 +258,26 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     };
     cacheCreationIn += u.cache_creation_input_tokens ?? 0;
     cacheReadIn += u.cache_read_input_tokens ?? 0;
-    // Advisor invocation count (alpha.5 correction). The platform's
-    // `usage.iterations[]` array includes the main inference as a
-    // message-type entry alongside any advisor sub-calls, so counting all
-    // message iterations over-counts (dogfood-005 observed advisorInvocations
-    // = turnCount). The reliable source is the response.content stream:
-    // each advisor invocation produces one `server_tool_use` block with
-    // name === "advisor". Per-token attribution for advisor calls is
-    // deferred to a future alpha (the iterations breakdown doesn't carry
-    // a reliable origin marker yet).
+    // Server-side tool invocation counts (alpha.5: advisor; alpha.7: web).
+    // The platform's `usage.iterations[]` array includes the main inference
+    // as a message-type entry alongside server-tool sub-calls, so counting
+    // all message iterations over-counts (dogfood-005 observed
+    // advisorInvocations == turnCount under that approach). The reliable
+    // source is the response.content stream: each server-side tool
+    // invocation produces one `server_tool_use` block whose `name` is the
+    // tool's canonical name ("advisor", "web_search", "web_fetch").
+    //
+    // Per-token attribution for server-side calls is deferred until the
+    // platform's `usage.iterations` breakdown exposes origin markers we
+    // can trust without double-counting (same caveat that applied to
+    // advisor in alpha.5).
     for (const block of response.content) {
       const b = block as { type?: string; name?: string };
-      if (b.type === "server_tool_use" && b.name === "advisor") {
-        advisorInvocations++;
-      }
+      if (b.type !== "server_tool_use" || !b.name) continue;
+      if (!COUNTED_SERVER_TOOL_NAMES.has(b.name)) continue;
+      if (b.name === "advisor") advisorInvocations++;
+      else if (b.name === "web_search") webSearchInvocations++;
+      else if (b.name === "web_fetch") webFetchInvocations++;
     }
     lastModelId = response.model;
 
@@ -363,6 +412,20 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
             },
           }
         : {}),
+      ...(webSearchInvocations > 0
+        ? {
+            webSearch: {
+              invocations: webSearchInvocations,
+            },
+          }
+        : {}),
+      ...(webFetchInvocations > 0
+        ? {
+            webFetch: {
+              invocations: webFetchInvocations,
+            },
+          }
+        : {}),
     },
     model: lastModelId,
   };
@@ -478,16 +541,25 @@ async function dispatchTool(
 interface ToolDefOpts {
   advisorModel: string;
   advisorMaxUses: number;
+  webSearchMaxUses: number;
+  webFetchMaxUses: number;
 }
 
 /**
  * Build the tool definitions passed to the beta messages API.
  *
- * Tools (in send order): bash, text_editor, memory, advisor.
+ * Tools (in send order): bash, text_editor, memory, web_search, web_fetch,
+ * advisor.
  *
- * Memory is server-spec'd but client-dispatched — the platform routes
- * tool_use blocks to us; we read/write the local `/memories` directory.
- * Advisor is fully server-side (the platform calls Opus 4.7 for us).
+ * Server-side vs. client-side:
+ *   - bash, text_editor: classic client-dispatched tools.
+ *   - memory: server-spec'd but client-dispatched — the platform routes
+ *     tool_use blocks to us; we read/write the local `/memories` directory.
+ *   - web_search, web_fetch: server-side (alpha.7). The platform queries
+ *     the index / fetches the URL and feeds the results back into the next
+ *     turn. We never see a `tool_use` block for these, only the
+ *     `server_tool_use` accounting block.
+ *   - advisor: server-side sub-inference (Opus 4.7).
  *
  * The LAST tool carries `cache_control` so the entire tools block becomes
  * part of the cached prefix (the platform applies cache_control transitively
@@ -496,8 +568,8 @@ interface ToolDefOpts {
  * the (system + tools) prefix that gets re-read every turn at 0.1x base
  * input rate.
  *
- * Exported for unit-testing the advisor + memory + cache wiring without an
- * end-to-end run.
+ * Exported for unit-testing the advisor + memory + web + cache wiring
+ * without an end-to-end run.
  */
 export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
   return [
@@ -517,12 +589,29 @@ export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
       name: "memory",
     },
     {
+      // Web search tool — server-side. SDK 0.78 types it as
+      // BetaWebSearchTool20250305, no cast needed. No beta header required
+      // (validated: alpha.4 lesson — only add betas the API actually demands).
+      type: "web_search_20250305",
+      name: "web_search",
+      max_uses: opts.webSearchMaxUses,
+    },
+    {
+      // Web fetch tool — server-side. BetaWebFetchTool20250910 in SDK 0.78.
+      // No domain allow/block lists by default — let the agent pull whatever
+      // the search step surfaces. Add `allowed_domains` here if a future
+      // run needs to be scoped.
+      type: "web_fetch_20250910",
+      name: "web_fetch",
+      max_uses: opts.webFetchMaxUses,
+    },
+    {
       // Advisor tool — server-side sub-inference. SDK 0.78 predates this beta,
       // so the cast is necessary. The API accepts it because we set
       // `betas: ['advisor-tool-2026-03-01']` on the request.
       // cache_control here marks the END of the prefix block; everything
-      // above (bash + text_editor + memory + advisor itself) becomes one
-      // cache entry.
+      // above (bash + text_editor + memory + web_search + web_fetch +
+      // advisor itself) becomes one cache entry.
       type: "advisor_20260301",
       name: "advisor",
       model: opts.advisorModel,

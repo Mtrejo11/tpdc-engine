@@ -118,6 +118,32 @@ export interface ExecuteResult {
       /** Count of advisor calls summed across all turns of this run. */
       invocations: number;
     };
+    /**
+     * Web search invocation accounting (v0.4.0-alpha.7+).
+     *
+     * Counted from `server_tool_use` blocks named "web_search". Same caveat
+     * as `advisor`: per-call token attribution is deferred until the
+     * platform's iterations breakdown exposes a reliable origin marker.
+     *
+     * Undefined when no web_search invocations happened in this run.
+     */
+    webSearch?: {
+      /** Count of web_search calls summed across all turns of this run. */
+      invocations: number;
+    };
+    /**
+     * Web fetch invocation accounting (v0.4.0-alpha.7+).
+     *
+     * Counted from `server_tool_use` blocks named "web_fetch". Same caveat
+     * as `advisor`: per-call token attribution is deferred until the
+     * platform's iterations breakdown exposes a reliable origin marker.
+     *
+     * Undefined when no web_fetch invocations happened in this run.
+     */
+    webFetch?: {
+      /** Count of web_fetch calls summed across all turns of this run. */
+      invocations: number;
+    };
   };
   /** The model id Anthropic actually served. */
   model: string;
