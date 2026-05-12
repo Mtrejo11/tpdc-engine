@@ -19,6 +19,7 @@ import {
   captureDiff,
   commitChanges,
   createWorktree,
+  ensureGitignored,
   listChangedFiles,
   removeWorktree,
   restoreWorktree,
@@ -282,6 +283,82 @@ describe("worktree (integration with real git)", () => {
       await removeWorktree(repoPath, handle, { deleteBranch: true });
 
       await expect(restoreWorktree(repoPath, handle)).rejects.toThrow();
+    });
+  });
+
+  // ── ensureGitignored (alpha.6) ─────────────────────────────────────
+
+  describe("ensureGitignored — silent housekeeping for .tpdc/", () => {
+    it("creates .gitignore with the entry when no .gitignore exists", async () => {
+      // Fresh dir under tempRoot (NOT the seeded repoPath which has commits).
+      const fresh = path.join(tempRoot, "fresh-repo");
+      await fs.mkdir(fresh, { recursive: true });
+
+      await ensureGitignored(fresh, ".tpdc/");
+
+      const content = await fs.readFile(path.join(fresh, ".gitignore"), "utf-8");
+      expect(content).toBe(".tpdc/\n");
+    });
+
+    it("appends to existing .gitignore preserving prior content", async () => {
+      await fs.writeFile(path.join(repoPath, ".gitignore"), "node_modules/\ndist/\n");
+      await ensureGitignored(repoPath, ".tpdc/");
+
+      const content = await fs.readFile(path.join(repoPath, ".gitignore"), "utf-8");
+      expect(content).toBe("node_modules/\ndist/\n.tpdc/\n");
+    });
+
+    it("adds a leading newline when existing file doesn't end in \\n", async () => {
+      await fs.writeFile(path.join(repoPath, ".gitignore"), "node_modules/");
+      await ensureGitignored(repoPath, ".tpdc/");
+
+      const content = await fs.readFile(path.join(repoPath, ".gitignore"), "utf-8");
+      expect(content).toBe("node_modules/\n.tpdc/\n");
+    });
+
+    it("is idempotent when entry already present as `.tpdc/`", async () => {
+      await fs.writeFile(path.join(repoPath, ".gitignore"), ".tpdc/\n");
+      await ensureGitignored(repoPath, ".tpdc/");
+
+      const content = await fs.readFile(path.join(repoPath, ".gitignore"), "utf-8");
+      expect(content).toBe(".tpdc/\n"); // unchanged
+    });
+
+    it("is idempotent for equivalent forms (`.tpdc`, `/.tpdc/`, `/.tpdc`)", async () => {
+      for (const form of [".tpdc", "/.tpdc/", "/.tpdc"]) {
+        const dir = await fs.mkdtemp(path.join(tempRoot, "eq-"));
+        await fs.writeFile(path.join(dir, ".gitignore"), `${form}\n`);
+        await ensureGitignored(dir, ".tpdc/");
+        const content = await fs.readFile(path.join(dir, ".gitignore"), "utf-8");
+        expect(content, `should be unchanged for form: ${form}`).toBe(`${form}\n`);
+      }
+    });
+
+    it("ignores commented-out matches", async () => {
+      // `# .tpdc/` is NOT an active ignore — should still append.
+      await fs.writeFile(path.join(repoPath, ".gitignore"), "# .tpdc/\nfoo\n");
+      await ensureGitignored(repoPath, ".tpdc/");
+
+      const content = await fs.readFile(path.join(repoPath, ".gitignore"), "utf-8");
+      expect(content).toBe("# .tpdc/\nfoo\n.tpdc/\n");
+    });
+
+    it("createWorktree auto-applies .gitignore (integration)", async () => {
+      // Fresh repo, no .gitignore.
+      const fresh = path.join(tempRoot, "auto-gi-repo");
+      await fs.mkdir(fresh, { recursive: true });
+      await gitInit(fresh);
+      await fs.writeFile(path.join(fresh, "seed.txt"), "x");
+      await execFileAsync("git", ["add", "."], { cwd: fresh });
+      await execFileAsync("git", ["commit", "-q", "-m", "init"], { cwd: fresh });
+
+      const handle = await createWorktree({ repoRoot: fresh, runId: "auto-1" });
+
+      const content = await fs.readFile(path.join(fresh, ".gitignore"), "utf-8");
+      expect(content).toContain(".tpdc/");
+
+      // Cleanup
+      await removeWorktree(fresh, handle, { deleteBranch: true });
     });
   });
 });

@@ -304,59 +304,27 @@ Keep these in your scratchpad as you progress:
 
 ## Final step — persist the run summary to memory (v0.4)
 
-The executor's system prompt now MANDATES that it write `/memories/runs/<runId>.md` and append to `/memories/repo-facts.md` before finishing. So the run summary file should already exist by the time you reach this step. Your job here is to verify the file is present and (optionally) append the post-execute metadata the executor can't know — PR URL, final CI conclusion, ship-level cost roll-up.
+The executor's system prompt MANDATES that it write `/memories/runs/<runId>.md` and append to `/memories/repo-facts.md` before finishing. So the run summary file should already exist by the time you reach this step. Your job here is to **append** the post-execute metadata the executor couldn't know — PR URL, final CI conclusion — to that same file.
 
-If you find the file is MISSING after a successful execute, that's a prompt-following failure worth surfacing in your final summary to the user (and as feedback to TPDC for the next alpha).
+The required sections in `/memories/runs/<runId>.md` are: Task, Status, Changes, Tests (the executor writes these). After CI completes, you append a top-level `## PR` line and a `## CI` line. Don't rewrite the executor's content; just append.
 
-Suggested summary file format (`/memories/runs/<runId>.md`):
+If you find the file is MISSING after a successful execute, that's a prompt-following failure worth surfacing in your final summary to the user (and as feedback for the next alpha).
+
+What to append (do NOT rewrite executor sections):
 
 ```markdown
-# TPDC run <runId> — <date>
+## PR
+<url or "not opened — <reason>">
 
-**Outcome:** success | halted (stage: <stage>)
-**Request:** "<original user request, verbatim>"
-**PR:** <url or "not opened">
-**Final CI:** success | failure | timeout | n/a
-
-## Cost roll-up (visible to TPDC)
-- tpdc_execute: <inputTokens> in / <outputTokens> out
-  - cache read: <cacheReadInputTokens>, cache create: <cacheCreationInputTokens>
-  - advisor invocations: <usage.advisor.invocations or 0>
-  - advisor tokens: <usage.advisor.inputTokens> in / <usage.advisor.outputTokens> out
-- tpdc_team_meeting: <inputTokens> in / <outputTokens> out (if fired)
-- Other stages: no LLM usage
-
-## Wall-clock (durations from tool results)
-- Execute: <durationMs / 1000>s
-- Run-tests: <durationMs / 1000>s
-- Push: <durationMs / 1000>s
-- Open-PR: <durationMs / 1000>s
-- Wait-CI: <durationMs / 1000>s
-- Auto-fix-CI iterations: <N>
-
-## Retries
-- Local fix: <N>/<max>
-- CI fix: <N>/<max>
-
-## What shipped
-<1-3 sentence description of the actual change>
-
-## Surprises
-<bullet list of anything notable: scope-creep avoidance, advisor consultations, halts>
-
-## Memory facts updated
-<list any /memories/* files written during this run, e.g., /memories/repo-facts.md additions>
+## CI
+- Conclusion: success | failure | timeout | skipped
+- Local fix retries: <N>/<max>
+- CI fix retries: <N>/<max>
 ```
 
-Note: the agent will only have visibility into TPDC's MCP-tool token usage. Claude Code's session token consumption (the cost of running intake/plan/auto-fix-ci as skills) is OUTSIDE TPDC's visibility. Don't fabricate those numbers — say "session burn handled by Claude Code; not surfaced to TPDC" if asked.
+That's it. The executor already captured Task / Status / Changes / Tests. You're only adding what couldn't be known until after push + CI: the PR URL and the CI outcome. Don't pad with sections you can't fill from real data — fabricated wall-clock breakdowns and cost roll-ups across skills are worse than absent. If you have something genuinely surprising to flag (an unexpected scope shift, a halt the user should know about), add a short `## Notes` block — but only when there's something real to say.
 
-**Minimum required content** (rest is nice-to-have):
-- PR URL (or "not opened" with reason)
-- Final CI conclusion
-- TPDC-visible cost from `executeResult.usage` (input + output + cache reads + advisor invocations)
-- Files changed list
-
-The structured template above is the FULL form. If you only get to the minimum, that's still a valid summary.
+Note: TPDC has visibility into `executeResult.usage` (input/output/cache/advisor tokens for the execute step). Claude Code session burn for intake/plan/auto-fix-ci as skills is OUTSIDE TPDC's visibility — don't fabricate those numbers.
 
 ## Example shape of the final summary you present to the user
 

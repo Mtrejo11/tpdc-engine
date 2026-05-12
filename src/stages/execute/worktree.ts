@@ -37,6 +37,10 @@ export interface CreateWorktreeOptions {
 /**
  * Create a new git worktree under <repoRoot>/.tpdc/worktrees/<runId>/.
  * Throws if repoRoot isn't a git repo, the runId already has a worktree, or git rejects.
+ *
+ * Also performs silent housekeeping: ensures `.tpdc/` is in the target
+ * repo's `.gitignore` (alpha.6 — dogfood-006 surfaced memory files
+ * appearing as untracked changes). Idempotent.
  */
 export async function createWorktree(opts: CreateWorktreeOptions): Promise<WorktreeHandle> {
   const { repoRoot, runId } = opts;
@@ -49,6 +53,18 @@ export async function createWorktree(opts: CreateWorktreeOptions): Promise<Workt
     await execFileAsync("git", ["rev-parse", "--git-dir"], { cwd: repoRoot });
   } catch {
     throw new Error(`createWorktree: ${repoRoot} is not a git repository`);
+  }
+
+  // Housekeeping: ensure .tpdc/ is gitignored before we create files under it.
+  // Done before the mkdir so the .gitignore entry is in place when git first
+  // sees the new directory tree. Safe to fail silently — if we can't write
+  // .gitignore (read-only fs, weird perms), the worktree creation still works.
+  try {
+    await ensureGitignored(repoRoot, ".tpdc/");
+  } catch (err) {
+    process.stderr.write(
+      `createWorktree: ensureGitignored failed (${(err as Error).message}); continuing\n`,
+    );
   }
 
   // Resolve baseRef to a stable SHA
@@ -73,6 +89,49 @@ export async function createWorktree(opts: CreateWorktreeOptions): Promise<Workt
   await execFileAsync("git", ["worktree", "add", "-b", branch, wtPath, baseSha], { cwd: repoRoot });
 
   return { path: wtPath, branch, baseSha };
+}
+
+/**
+ * Ensure that `entry` (e.g., `.tpdc/`) appears in `<repoRoot>/.gitignore`.
+ *
+ * Idempotent: checks for the entry under several equivalent forms (`.tpdc/`,
+ * `/.tpdc/`, `.tpdc`, `/.tpdc`) before appending. Creates `.gitignore` if
+ * absent. Appends a newline-separated entry so it lands on its own line.
+ *
+ * Exported for testing.
+ */
+export async function ensureGitignored(repoRoot: string, entry: string): Promise<void> {
+  const gitignorePath = path.join(repoRoot, ".gitignore");
+  let current = "";
+  try {
+    current = await fs.readFile(gitignorePath, "utf-8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    // No .gitignore yet — fine, we'll create one.
+  }
+
+  // Treat `.tpdc/`, `/.tpdc/`, `.tpdc`, `/.tpdc` as equivalent. We also accept
+  // a trailing `*` glob if the user customized it.
+  const normalized = entry.replace(/^\/+/, "").replace(/\/+$/, "");
+  const equivalents = new Set([
+    entry,
+    `/${entry}`,
+    normalized,
+    `/${normalized}`,
+    `${normalized}/`,
+    `/${normalized}/`,
+  ]);
+
+  const present = current.split("\n").some((line) => {
+    const trimmed = line.split("#")[0]?.trim() ?? "";
+    return trimmed.length > 0 && equivalents.has(trimmed);
+  });
+
+  if (present) return;
+
+  const needsLeadingNewline = current.length > 0 && !current.endsWith("\n");
+  const addition = `${needsLeadingNewline ? "\n" : ""}${entry}\n`;
+  await fs.writeFile(gitignorePath, current + addition, "utf-8");
 }
 
 /**

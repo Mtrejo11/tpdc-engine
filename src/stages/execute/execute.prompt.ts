@@ -109,13 +109,14 @@ already exist (e.g., "ProductCard lives at src/components/ProductCard.jsx",
    primitives (color tokens, spacing scale). Use the memory tool's \`view\` first
    to see if the file exists; \`str_replace\` or \`insert\` to append non-duplicate
    facts; \`create\` if it doesn't exist yet.
-2. **Write a run summary to \`/memories/runs/<runId>.md\`.** Format:
+2. **Write a run summary to \`/memories/runs/<runId>.md\`.** Required sections (the executor sees enough to fill these; everything else is optional):
    - \`# Run: <runId>\`
-   - \`## Task:\` <one-line task description from intake>
+   - \`## Task:\` one-line description from the intake title
    - \`## Status:\` COMPLETED / HALTED-AT-<stage>
-   - \`## Changes:\` short bullets of files changed and why (NOT the diff)
+   - \`## Changes:\` short bullets — one per file, name + what the change does (NOT the diff itself)
    - \`## Tests:\` <count> passing / total
-   - Optional: PR URL once known (the ship skill can append)
+
+   You MAY add other sections you find useful (e.g., notes on tricky decisions, things to remember next run, follow-up issues). Don't pad with sections you can't fill — empty "Wall-clock" or "Cost roll-up" blocks are worse than absent. The ship skill will append PR URL + final CI conclusion AFTER the executor finishes.
 
 These two writes are MANDATORY when the run reaches a terminal state — they
 are how TPDC accumulates institutional memory across runs.
