@@ -452,27 +452,19 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       // clean for pre-cache, pre-advisor callers reading the result.
       ...(cacheCreationIn > 0 ? { cacheCreationInputTokens: cacheCreationIn } : {}),
       ...(cacheReadIn > 0 ? { cacheReadInputTokens: cacheReadIn } : {}),
-      ...(advisorInvocations > 0
-        ? {
-            advisor: {
-              invocations: advisorInvocations,
-            },
-          }
-        : {}),
-      ...(webSearchInvocations > 0
-        ? {
-            webSearch: {
-              invocations: webSearchInvocations,
-            },
-          }
-        : {}),
-      ...(webFetchInvocations > 0
-        ? {
-            webFetch: {
-              invocations: webFetchInvocations,
-            },
-          }
-        : {}),
+      // Always-include for the three agent-firable server-side tools
+      // (alpha.11). Pre-alpha.11 we omitted these when invocations were
+      // zero, which created an ambiguity for the reader: "field absent
+      // because the tool didn't fire" vs. "field absent because the
+      // counter wasn't wired yet". Now: if execute returns, these three
+      // counts are present. Dogfood-007's run summary surfaced this gap.
+      advisor: { invocations: advisorInvocations },
+      webSearch: { invocations: webSearchInvocations },
+      webFetch: { invocations: webFetchInvocations },
+      // Compaction stays omit-when-zero on purpose. The capability is
+      // currently disabled entirely (see alpha.10 hotfix), so 0 events
+      // is the structural default, not a signal. Re-enable the
+      // always-include pattern when context_management lands.
       ...(compactionEvents > 0
         ? {
             compaction: {

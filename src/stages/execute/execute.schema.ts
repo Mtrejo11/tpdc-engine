@@ -112,7 +112,11 @@ export interface ExecuteResult {
      * level; advisor-only attribution will come back when the platform
      * exposes it cleanly.
      *
-     * Undefined when no advisor invocations happened in this run.
+     * **As of v0.4.0-alpha.11 this field is always present when execute
+     * returns** (with `invocations: 0` when the tool didn't fire) — the
+     * previous omit-when-zero pattern was ambiguous to readers. The TS
+     * optional marker is kept for backward compatibility with results
+     * persisted from earlier alphas.
      */
     advisor?: {
       /** Count of advisor calls summed across all turns of this run. */
@@ -125,7 +129,8 @@ export interface ExecuteResult {
      * as `advisor`: per-call token attribution is deferred until the
      * platform's iterations breakdown exposes a reliable origin marker.
      *
-     * Undefined when no web_search invocations happened in this run.
+     * **Always present on v0.4.0-alpha.11+ results.** Optional marker kept
+     * for backward compatibility with persisted pre-alpha.11 results.
      */
     webSearch?: {
       /** Count of web_search calls summed across all turns of this run. */
@@ -138,7 +143,8 @@ export interface ExecuteResult {
      * as `advisor`: per-call token attribution is deferred until the
      * platform's iterations breakdown exposes a reliable origin marker.
      *
-     * Undefined when no web_fetch invocations happened in this run.
+     * **Always present on v0.4.0-alpha.11+ results.** Optional marker kept
+     * for backward compatibility with persisted pre-alpha.11 results.
      */
     webFetch?: {
       /** Count of web_fetch calls summed across all turns of this run. */
@@ -148,15 +154,15 @@ export interface ExecuteResult {
      * Context compaction events (v0.4.0-alpha.8+).
      *
      * Each event is a `BetaCompactionBlock` emitted by the platform when
-     * the input-token trigger fires. The summary block replaces older
-     * turns in-place; we round-trip it back via `messages` so the
-     * post-summary context survives.
+     * the input-token trigger fires.
      *
-     * A high `events` count (say, > 1 on a single run) suggests the trigger
-     * threshold is too tight or the task is genuinely beyond the comfort
-     * envelope — worth flagging in the run summary.
-     *
-     * Undefined when no compaction events happened in this run.
+     * **Disabled in v0.4.0-alpha.10+** — the platform rejected the
+     * `compact_20260112` edit type when we tried to enable it during
+     * dogfood-007. This field intentionally stays omit-when-zero (unlike
+     * advisor/web) because zero events is the *structural default* of a
+     * disabled capability, not a signal about agent behavior. When
+     * context_management lands and we re-enable it (see execute.ts
+     * hotfix comment), flip this to always-include alongside advisor/web.
      */
     compaction?: {
       /** Count of compaction blocks observed in the response stream. */

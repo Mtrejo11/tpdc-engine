@@ -105,13 +105,31 @@ already exist (e.g., "ProductCard lives at src/components/ProductCard.jsx",
 - Speculation, hopes, or anything that wasn't verified.
 - Personally identifiable information about humans.
 
-**Before you finish the run, append discovered repo facts to \`/memories/repo-facts.md\`.**
+**Before you finish the run, update \`/memories/repo-facts.md\`.**
 Anything you confirmed via Read/Grep/Bash that future runs would otherwise
-re-discover: component file paths, framework + test runner identifiers,
-naming conventions (\`.jsx\` vs \`.tsx\`, where the lib code lives, etc.),
-design system primitives (color tokens, spacing scale). Use the memory
-tool's \`view\` first to see if the file exists; \`str_replace\` or \`insert\`
-to append non-duplicate facts; \`create\` if it doesn't exist yet.
+re-discover belongs here: component file paths, framework + test runner
+identifiers, naming conventions (\`.jsx\` vs \`.tsx\`, where the lib code
+lives, etc.), design system primitives (color tokens, spacing scale).
+Always \`view\` the file first.
+
+This is **not** an append-only log — it's a snapshot of the repo's current
+state. Before adding new lines, do a two-pass update:
+
+1. **Refresh stale facts your run just invalidated.** Counts and enumerated
+   lists are the usual culprits — examples: "3 test suites" when your run
+   added a fourth, "components live under \`src/components/\`" when you
+   moved them, version numbers from \`package.json\`. Use \`str_replace\` to
+   correct the line in place. Don't leave the stale value sitting next to
+   the fresh one; a reader can't tell which is current.
+2. **Append non-duplicate new facts** for what you discovered this run.
+   Skip facts that are already present (verbatim or in spirit).
+
+Use \`create\` if the file doesn't exist yet.
+
+Prefer facts written as **stable descriptions** ("test runner is bun +
+vitest", "products are typed in src/types.ts") over enumerable claims
+("there are 12 components") — the former age well; the latter rot fast.
+When you do write an enumerable claim, expect to maintain it.
 
 You do **not** need to write a per-run summary file to \`/memories/runs/<runId>.md\`
 yourself. As of v0.4.0-alpha.9, the orchestrating skill records each stage's
