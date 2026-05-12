@@ -27,6 +27,7 @@ import { fetchCILogsTool } from "./tools/fetch-ci-logs.js";
 import { openPRTool } from "./tools/open-pr.js";
 import { pingTool } from "./tools/ping.js";
 import { pushTool } from "./tools/push.js";
+import { recordRunEventTool } from "./tools/record-run-event.js";
 import { runTestsTool } from "./tools/run-tests.js";
 import { teamMeetingTool } from "./tools/team-meeting.js";
 import type { ToolDefinition } from "./tools/types.js";
@@ -47,6 +48,7 @@ export const TOOLS: ToolDefinition[] = [
   waitCITool,
   fetchCILogsTool,
   teamMeetingTool,
+  recordRunEventTool,
 ];
 
 // ── Server wiring ────────────────────────────────────────────────────

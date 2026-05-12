@@ -11,7 +11,7 @@
       "name": "tpdc",
       "source": "..",
       "description": "Autonomous dev workflow: request → PR with CI green. Exposes stages as skills + MCP validators per VISION.md.",
-      "version": "0.4.0-alpha.8",
+      "version": "0.4.0-alpha.9",
       "keywords": [
         "claude-code",
         "mcp",

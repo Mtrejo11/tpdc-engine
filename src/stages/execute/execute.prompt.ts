@@ -105,29 +105,25 @@ already exist (e.g., "ProductCard lives at src/components/ProductCard.jsx",
 - Speculation, hopes, or anything that wasn't verified.
 - Personally identifiable information about humans.
 
-**Before you finish the run, do these two memory writes:**
+**Before you finish the run, append discovered repo facts to \`/memories/repo-facts.md\`.**
+Anything you confirmed via Read/Grep/Bash that future runs would otherwise
+re-discover: component file paths, framework + test runner identifiers,
+naming conventions (\`.jsx\` vs \`.tsx\`, where the lib code lives, etc.),
+design system primitives (color tokens, spacing scale). Use the memory
+tool's \`view\` first to see if the file exists; \`str_replace\` or \`insert\`
+to append non-duplicate facts; \`create\` if it doesn't exist yet.
 
-1. **Append discovered repo facts to \`/memories/repo-facts.md\`.** Anything you
-   confirmed via Read/Grep/Bash that future runs would otherwise re-discover:
-   component file paths, framework + test runner identifiers, naming conventions
-   (\`.jsx\` vs \`.tsx\`, where the lib code lives, etc.), design system
-   primitives (color tokens, spacing scale). Use the memory tool's \`view\` first
-   to see if the file exists; \`str_replace\` or \`insert\` to append non-duplicate
-   facts; \`create\` if it doesn't exist yet.
-2. **Write a run summary to \`/memories/runs/<runId>.md\`.** Required sections (the executor sees enough to fill these; everything else is optional):
-   - \`# Run: <runId>\`
-   - \`## Task:\` one-line description from the intake title
-   - \`## Status:\` COMPLETED / HALTED-AT-<stage>
-   - \`## Changes:\` short bullets — one per file, name + what the change does (NOT the diff itself)
-   - \`## Tests:\` <count> passing / total
+You do **not** need to write a per-run summary file to \`/memories/runs/<runId>.md\`
+yourself. As of v0.4.0-alpha.9, the orchestrating skill records each stage's
+outcome through the \`tpdc_record_run_event\` MCP tool — that's the canonical
+writer for the run-summary file. Your job is to do the work and return cleanly;
+the summary captures itself from the return shape (status, branch, filesChanged,
+finalSummary, toolCallCount, turnCount).
 
-   You MAY add other sections you find useful (e.g., notes on tricky decisions, things to remember next run, follow-up issues). Don't pad with sections you can't fill — empty "Wall-clock" or "Cost roll-up" blocks are worse than absent. The ship skill will append PR URL + final CI conclusion AFTER the executor finishes.
-
-These two writes are MANDATORY when the run reaches a terminal state — they
-are how TPDC accumulates institutional memory across runs.
-
-Convention layout: \`/memories/repo-facts.md\` for stable facts, \`/memories/runs/\`
-for per-run summaries, optional \`/memories/README.md\` explaining layout.
+Convention layout: \`/memories/repo-facts.md\` for stable facts you uncovered,
+optional \`/memories/README.md\` if you want to explain the layout to future
+runs. The \`/memories/runs/\` directory is managed by the recorder tool —
+don't write there directly.
 
 ## Context compaction (long runs)
 

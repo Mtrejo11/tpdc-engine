@@ -1,7 +1,7 @@
 ---
 name: ship
 description: TPDC end-to-end — take a feature request in natural language and ship it as a PR with CI green. Orchestrates intake → plan → execute → run-tests → push → open-PR → auto-fix-CI with confirmation gates at the irreversible steps. This is the user-facing entry point for TPDC. Trigger when the user says "ship this feature", "/tpdc:ship", or pastes a feature request expecting an autonomous pipeline.
-allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact, mcp__plugin_tpdc_tpdc__tpdc_validate_plan_artifact, mcp__plugin_tpdc_tpdc__tpdc_execute, mcp__plugin_tpdc_tpdc__tpdc_run_tests, mcp__plugin_tpdc_tpdc__tpdc_push, mcp__plugin_tpdc_tpdc__tpdc_open_pr, mcp__plugin_tpdc_tpdc__tpdc_wait_ci, mcp__plugin_tpdc_tpdc__tpdc_fetch_ci_logs
+allowed-tools: Read, Grep, Glob, Bash, mcp__plugin_tpdc_tpdc__tpdc_validate_intake_artifact, mcp__plugin_tpdc_tpdc__tpdc_validate_plan_artifact, mcp__plugin_tpdc_tpdc__tpdc_execute, mcp__plugin_tpdc_tpdc__tpdc_run_tests, mcp__plugin_tpdc_tpdc__tpdc_push, mcp__plugin_tpdc_tpdc__tpdc_open_pr, mcp__plugin_tpdc_tpdc__tpdc_wait_ci, mcp__plugin_tpdc_tpdc__tpdc_fetch_ci_logs, mcp__plugin_tpdc_tpdc__tpdc_record_run_event
 metadata:
   author: tpdc
   version: "0.4"
@@ -302,29 +302,29 @@ Keep these in your scratchpad as you progress:
 - `prUrl`, `prNumber` (post-stage-6)
 - `wipReason` (only when set)
 
-## Final step — persist the run summary to memory (v0.4)
+## Persisting the run — call `tpdc_record_run_event` per stage (v0.4.0-alpha.9+)
 
-The executor's system prompt MANDATES that it write `/memories/runs/<runId>.md` and append to `/memories/repo-facts.md` before finishing. So the run summary file should already exist by the time you reach this step. Your job here is to **append** the post-execute metadata the executor couldn't know — PR URL, final CI conclusion — to that same file.
+The canonical run summary lives at `<repoRoot>/.tpdc/memory/runs/<runId>.md`. As of alpha.9, the **ship skill writes it** via the `tpdc_record_run_event` MCP tool — one structured call per stage, no manual markdown editing. The tool validates the payload (Zod discriminated union on `eventType`) before touching disk, so a malformed call is rejected with a per-field error list rather than silently producing a broken file.
 
-The required sections in `/memories/runs/<runId>.md` are: Task, Status, Changes, Tests (the executor writes these). After CI completes, you append a top-level `## PR` line and a `## CI` line. Don't rewrite the executor's content; just append.
+This replaces the older prompt-driven pattern (asking the executor agent to write to memory itself). The executor MAY still keep ad-hoc memory notes — that's separate. But the per-run summary is the orchestrator's responsibility now.
 
-If you find the file is MISSING after a successful execute, that's a prompt-following failure worth surfacing in your final summary to the user (and as feedback for the next alpha).
+Call `tpdc_record_run_event` at these points in the workflow:
 
-What to append (do NOT rewrite executor sections):
+| When | `event` payload |
+| --- | --- |
+| After **stage 3 (execute)** completes (any status — including halts) | `{ eventType: "execute_complete", task: <intake.title>, status: <executeResult.status>, branch: <executeResult.branch>, filesChanged: <executeResult.filesChanged>, finalSummary: <executeResult.finalSummary>, toolCallCount: <executeResult.toolCallCount>, turnCount: <executeResult.turnCount> }` |
+| After **stage 4 (run-tests)**, when it ran | `{ eventType: "tests_complete", status: <runTestsResult.status>, commands: [{ command, passed }, ...] }` |
+| After **stage 6 (open-PR)** succeeds | `{ eventType: "pr_opened", prUrl, prNumber, draft?, wipReason? }` |
+| After **wait-CI** or **auto-fix-CI** terminates | `{ eventType: "ci_complete", conclusion, localFixRetries, ciFixRetries }` |
+| On any **halt** (every halt branch in this skill) | `{ eventType: "halt", stage: <stage>, reason: <reason> }` |
 
-```markdown
-## PR
-<url or "not opened — <reason>">
+Each call appends one `## <Section>` block. The first call creates the file with a `# TPDC run <runId>` header; subsequent calls just append.
 
-## CI
-- Conclusion: success | failure | timeout | skipped
-- Local fix retries: <N>/<max>
-- CI fix retries: <N>/<max>
-```
+**Don't fabricate fields.** If a field isn't actually known (e.g., `ciFixRetries` when auto-fix-CI wasn't run), omit it — the tool's schema marks those optional precisely so callers don't pad with zeros that look like real data.
 
-That's it. The executor already captured Task / Status / Changes / Tests. You're only adding what couldn't be known until after push + CI: the PR URL and the CI outcome. Don't pad with sections you can't fill from real data — fabricated wall-clock breakdowns and cost roll-ups across skills are worse than absent. If you have something genuinely surprising to flag (an unexpected scope shift, a halt the user should know about), add a short `## Notes` block — but only when there's something real to say.
+**Don't worry about ordering across reruns.** If a stage runs multiple times (fix-mode execute, auto-fix-CI iterations), record each as its own event. The summary file is an event log, not a snapshot.
 
-Note: TPDC has visibility into `executeResult.usage` (input/output/cache/advisor tokens for the execute step). Claude Code session burn for intake/plan/auto-fix-ci as skills is OUTSIDE TPDC's visibility — don't fabricate those numbers.
+Note: TPDC has visibility into `executeResult.usage` (input/output/cache/advisor/web tokens for the execute step). Claude Code session burn for intake/plan/auto-fix-ci as skills is OUTSIDE TPDC's visibility — don't fabricate those numbers in any free-text summary you give the user.
 
 ## Example shape of the final summary you present to the user
 

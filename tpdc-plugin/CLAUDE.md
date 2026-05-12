@@ -44,6 +44,7 @@ Each stage is either:
 | `tpdc_wait_ci` | Polls `gh run list` until the most recent run for `branch` reaches a terminal state. Returns conclusion (success/failure/cancelled/...). Exponential backoff (default 5s → 30s cap, max wait 30min). Status `timeout` and `errored` (gh repeatedly failing) are valid outcomes. |
 | `tpdc_fetch_ci_logs` | `gh run view --log-failed` for the most recent run on `branch`. Returns tail-preserved log blob (default 8KB cap). Used to feed FailureContext into a fix-mode `tpdc_execute`. |
 | `tpdc_team_meeting` | **D6.** Convenes 2-4 role agents (PM, TechLead, Designer, Engineer) in parallel + Opus moderator synthesis. Returns synthesized answers with role provenance, assumptions to commit to, preserved dissent, consensus boolean, and optional escalateToHuman. ~$0.30 / 60-75s per meeting. Single-shot (no recursion). Use when intake/plan can't converge after 2-3 rounds, or for explicit multi-perspective deliberation. |
+| `tpdc_record_run_event` | **alpha.9.** Append a Zod-validated event section to `<repoRoot>/.tpdc/memory/runs/<runId>.md`. Discriminated union on `eventType` (`execute_complete`, `tests_complete`, `pr_opened`, `ci_complete`, `halt`). Replaces the prompt-driven memory-write contract — ship calls it once per stage with structured outputs, malformed payloads rejected before disk write. |
 
 ## Coming next (v0.4 chapter, after alpha.0 prompt caching)
 
