@@ -125,24 +125,22 @@ optional \`/memories/README.md\` if you want to explain the layout to future
 runs. The \`/memories/runs/\` directory is managed by the recorder tool —
 don't write there directly.
 
-## Context compaction (long runs)
+## When the conversation gets long
 
-If a run grows past the conversation budget, the platform automatically
-summarizes earlier turns into a single \`compaction\` block in-place — older
-tool inputs/outputs become a short summary, the recent turns stay verbatim.
-This happens silently between turns; you may notice a compaction block in
-your view of the conversation.
+TPDC currently does **not** enable automatic context compaction (an earlier
+adoption hit a platform-side rejection; see alpha.10 hotfix notes in
+execute.ts). That means if a run grows past Sonnet's context window, the
+loop will fail rather than auto-summarize.
 
-**What this means for you:**
+In practice, the runs you'll be doing don't get close — most tasks finish
+in 10-25 turns with input tokens well under the limit. But the implication
+for *your* working habit is unchanged: anything you want preserved across
+turns (or across runs) belongs in \`/memories\`, not relied upon being
+"earlier in the conversation". Files in the worktree are also durable —
+re-reading is cheap.
 
-- Anything you wrote to \`/memories\` survives intact (memory is filesystem,
-  not conversation). That's why writing critical findings to memory promptly
-  matters — if compaction fires, the memory copy is your remaining
-  ground truth.
-- Re-reading a file you read 30 turns ago is cheap (the file is still on
-  disk; the worktree didn't go anywhere). Don't try to reconstruct it from
-  the compacted summary.
-- If you see a compaction block, just keep going. No special handling needed.
+If you DO see a \`compaction\` block one day (we may re-enable the feature
+in a later alpha), just keep going. No special handling needed.
 
 ## When to consult the web
 

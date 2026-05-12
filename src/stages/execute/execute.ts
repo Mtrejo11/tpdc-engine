@@ -58,22 +58,37 @@ const TOOL_ERROR_LIMIT = 5;
 const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 
 /**
- * Beta flag for context management edits (alpha.8). Enables the
- * `compact_20260112` edit type, which lets the platform autocompact older
- * turns into a summary `BetaCompactionBlock` once the input-token trigger
- * fires. Without this header the `context_management` field in the request
- * is rejected.
+ * Context management (alpha.8 / alpha.10 hotfix).
+ *
+ * Original alpha.8 plan: send `context_management.edits[0].type =
+ * "compact_20260112"` plus the `context-management-2025-06-27` beta header
+ * to enable autocompact-summary behavior. SDK 0.78 types both natively
+ * (BetaCompact20260112Edit + BetaCompactionBlock), so the wiring was
+ * type-safe.
+ *
+ * What actually happened during dogfood-007 (2026-05-12): the API rejected
+ * the request — only `clear_thinking_20251015` and `clear_tool_uses_20250919`
+ * are currently accepted as edit types. `compact_20260112` is typed in the
+ * SDK but not yet served. This is the same divergence we hit in alpha.4
+ * with `memory-tool-2025-08-18` (SDK ahead of API).
+ *
+ * Decision (alpha.10): disable context management entirely until either
+ *   (a) `compact_20260112` becomes API-supported, or
+ *   (b) a future TPDC run shows we're actually hitting context limits and
+ *       we have a reason to adopt `clear_tool_uses_20250919` with tuned
+ *       `keep` / `clear_tool_inputs` / `exclude_tools: ["memory"]` config.
+ * Current runs cap at turn counts ~25 and input tokens well below the
+ * threshold, so the no-op is fine in practice.
+ *
+ * The `compactionEvents` counter in the response scan is preserved (cheap;
+ * gracefully always 0 now) and the optional `usage.compaction.events`
+ * schema field stays — both are additive so callers don't break when
+ * compaction returns.
+ *
+ * Lesson formalized: before adopting a beta capability whose SDK type is
+ * very new, send one probe request through the gated integration suite
+ * with the minimum config to confirm API acceptance, then promote.
  */
-const CONTEXT_MANAGEMENT_BETA = "context-management-2025-06-27";
-
-/**
- * Trigger threshold for compaction (alpha.8). Once the conversation's input
- * tokens cross this watermark, the platform inserts a summary block that
- * replaces older turns in-place. Sonnet 4.6's context window is ~200k, so
- * 120k leaves ~80k of headroom for the post-summary continuation. Adjust if
- * dogfooding shows we're either hitting it too eagerly or too late.
- */
-const COMPACTION_TRIGGER_INPUT_TOKENS = 120_000;
 
 // NOTE (alpha.4 hotfix): we previously also sent `memory-tool-2025-08-18` as
 // a conservative beta flag, but the API rejected the request with that header
@@ -262,29 +277,10 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
       ],
       messages,
       tools,
-      betas: [ADVISOR_TOOL_BETA, CONTEXT_MANAGEMENT_BETA],
-      // Context management (alpha.8). The platform decides when to fire
-      // based on the trigger threshold; when it does, a summary
-      // BetaCompactionBlock replaces older turns in-place and shows up in
-      // response.content. We round-trip the assistant content into
-      // `messages` unchanged below, so compaction blocks persist across
-      // turns automatically — no special handling required.
-      //
-      // pause_after_compaction is intentionally false so the agent loop
-      // continues without an out-of-band stop. We track event counts via
-      // the response.content scan and surface them in usage.compaction.
-      context_management: {
-        edits: [
-          {
-            type: "compact_20260112",
-            trigger: {
-              type: "input_tokens",
-              value: COMPACTION_TRIGGER_INPUT_TOKENS,
-            },
-            pause_after_compaction: false,
-          },
-        ],
-      },
+      betas: [ADVISOR_TOOL_BETA],
+      // context_management intentionally omitted (alpha.10 hotfix). See
+      // the block-comment above CONTEXT_MANAGEMENT constants for the
+      // rejection history and the conditions to re-enable.
     });
 
     totalIn += response.usage.input_tokens;
@@ -314,10 +310,12 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     // advisor in alpha.5).
     for (const block of response.content) {
       const b = block as { type?: string; name?: string };
-      // Compaction blocks (alpha.8) — emitted when the platform decides the
-      // trigger threshold fired. One block per compaction event. We round-
-      // trip them back through `messages.push(response.content)` below so
-      // the post-summary context is preserved across turns.
+      // Compaction blocks (alpha.8, currently disabled in alpha.10). The
+      // counter remains as forward-compat scaffolding — if/when we re-
+      // enable context_management (compact_20260112 going GA, or
+      // clear_tool_uses with tuned keep/exclude config), these blocks
+      // will start arriving and the count surfaces in usage.compaction.
+      // For now this branch is dead code in practice but cheap to keep.
       if (b.type === "compaction") {
         compactionEvents++;
         continue;
