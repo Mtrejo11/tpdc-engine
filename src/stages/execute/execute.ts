@@ -59,6 +59,17 @@ const ADVISOR_TOOL_BETA = "advisor-tool-2026-03-01";
 /** Cap advisor invocations per execute run to bound cost. */
 const DEFAULT_ADVISOR_MAX_USES = 5;
 
+/**
+ * Prompt caching cache_control marker. Placed on the last tool definition
+ * AND the system text block so the (system + tools) prefix becomes a single
+ * cache entry. With the agentic loop firing 60 turns at the same prefix,
+ * cache hits save 30-50% of input tokens (read at 0.1x base rate; the first
+ * write costs 1.25x). See VISION.md §4 HIGH (alpha.11 / v0.4.0-alpha.0).
+ *
+ * Default TTL is 5m (ephemeral); the platform also offers 1h.
+ */
+const PROMPT_CACHE_CONTROL = { type: "ephemeral" as const };
+
 /** Client-side tool names we know how to dispatch. Advisor is server-side and excluded. */
 const CLIENT_SIDE_TOOL_NAMES = new Set(["bash", "str_replace_based_edit_tool"]);
 
@@ -118,6 +129,8 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
   let consecutiveToolErrors = 0;
   let totalIn = 0;
   let totalOut = 0;
+  let cacheCreationIn = 0;
+  let cacheReadIn = 0;
   let lastModelId = model;
   let finalSummary = "";
   let status: ExecuteStatus = "max_turns_exceeded";
@@ -127,7 +140,17 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     const response = await client.beta.messages.create({
       model,
       max_tokens: DEFAULT_MAX_TOKENS_PER_TURN,
-      system: systemPrompt,
+      // System prompt is sent as a text-block array so we can attach
+      // cache_control. The platform caches the (system + tools) prefix once
+      // the cache entry is warm; subsequent turns read from cache at 0.1x
+      // base rate. Only meaningful when the loop runs >= 2 turns.
+      system: [
+        {
+          type: "text",
+          text: systemPrompt,
+          cache_control: PROMPT_CACHE_CONTROL,
+        },
+      ],
       messages,
       tools,
       betas: [ADVISOR_TOOL_BETA],
@@ -135,6 +158,17 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
 
     totalIn += response.usage.input_tokens;
     totalOut += response.usage.output_tokens;
+    // Cache usage tracking. The SDK exposes these on usage when prompt
+    // caching is active. Both default to 0 when the response had no cache
+    // interaction (e.g., a one-turn run or pre-cache code path).
+    const u = response.usage as {
+      input_tokens: number;
+      output_tokens: number;
+      cache_creation_input_tokens?: number;
+      cache_read_input_tokens?: number;
+    };
+    cacheCreationIn += u.cache_creation_input_tokens ?? 0;
+    cacheReadIn += u.cache_read_input_tokens ?? 0;
     lastModelId = response.model;
 
     // Append assistant message
@@ -254,7 +288,14 @@ export async function runExecute(opts: RunExecuteOptions): Promise<ExecuteResult
     finalSummary,
     toolCallCount,
     turnCount: messages.filter((m) => m.role === "assistant").length,
-    usage: { inputTokens: totalIn, outputTokens: totalOut },
+    usage: {
+      inputTokens: totalIn,
+      outputTokens: totalOut,
+      // Only surface cache fields when they're non-zero; keeps the JSON
+      // clean for pre-cache callers reading the result.
+      ...(cacheCreationIn > 0 ? { cacheCreationInputTokens: cacheCreationIn } : {}),
+      ...(cacheReadIn > 0 ? { cacheReadInputTokens: cacheReadIn } : {}),
+    },
     model: lastModelId,
   };
 }
@@ -368,7 +409,14 @@ interface ToolDefOpts {
 /**
  * Build the tool definitions passed to the beta messages API.
  *
- * Exported for unit-testing the advisor wiring without an end-to-end run.
+ * The LAST tool carries `cache_control` so the entire tools block becomes
+ * part of the cached prefix (the platform applies cache_control transitively
+ * to everything above the marked block). Paired with the system-prompt
+ * cache_control in the loop body, this gives us a single cache entry for
+ * the (system + tools) prefix that gets re-read every turn at 0.1x base
+ * input rate.
+ *
+ * Exported for unit-testing the advisor + cache wiring without an end-to-end run.
  */
 export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
   return [
@@ -384,10 +432,13 @@ export function buildToolDefinitions(opts: ToolDefOpts): BetaToolUnion[] {
       // Advisor tool — server-side sub-inference. SDK 0.78 predates this beta,
       // so the cast is necessary. The API accepts it because we set
       // `betas: ['advisor-tool-2026-03-01']` on the request.
+      // cache_control here marks the END of the prefix block; everything
+      // above (bash + text_editor + advisor itself) becomes one cache entry.
       type: "advisor_20260301",
       name: "advisor",
       model: opts.advisorModel,
       max_uses: opts.advisorMaxUses,
+      cache_control: PROMPT_CACHE_CONTROL,
     } as unknown as BetaToolUnion,
   ];
 }

@@ -86,6 +86,17 @@ export interface ExecuteResult {
   usage: {
     inputTokens: number;
     outputTokens: number;
+    /**
+     * Tokens used to create cache entries this run, summed across turns.
+     * Charged at 1.25x base input rate. Only present when prompt caching
+     * is active (v0.4.0+); undefined on responses pre-cache-wireup.
+     */
+    cacheCreationInputTokens?: number;
+    /**
+     * Tokens served from cache this run, summed across turns. Charged at
+     * 0.1x base input rate — this is where the savings live.
+     */
+    cacheReadInputTokens?: number;
   };
   /** The model id Anthropic actually served. */
   model: string;

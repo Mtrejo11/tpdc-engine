@@ -1,8 +1,8 @@
 /**
  * Tests for the MCP server scaffold.
  *
- * v0.3.0-alpha.0: just validate the ping tool wires correctly. Real tool
- * tests land alongside their tool implementations.
+ * Validates the ping tool wires correctly + the server builds with a valid
+ * VERSION constant. Real tool tests live alongside their tool implementations.
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,10 +21,10 @@ describe("buildServer", () => {
     // The MCP Server SDK doesn't expose tools list publicly; we re-exec the
     // registered handler by sending a synthetic request. The simplest cross-
     // version-stable assertion is: building the server does not throw and
-    // version metadata is present. Real tool-call testing happens at the
-    // integration layer (Claude Code → stdio → server) in alpha.1+.
+    // version metadata is present.
     expect(typeof VERSION).toBe("string");
-    expect(VERSION.startsWith("0.3.")).toBe(true);
+    // Match any 0.x SemVer (avoids breaking on every minor bump).
+    expect(VERSION).toMatch(/^0\.\d+\./);
     expect(server).toBeDefined();
   });
 });

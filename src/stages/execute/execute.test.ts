@@ -60,4 +60,15 @@ describe("buildToolDefinitions", () => {
     const names = tools.map((t) => (t as { name: string }).name);
     expect(names).toEqual(["bash", "str_replace_based_edit_tool", "advisor"]);
   });
+
+  it("marks ONLY the last tool with cache_control: ephemeral (prefix caching marker)", () => {
+    const tools = buildToolDefinitions(opts);
+    const cacheControls = tools.map(
+      (t) => (t as { cache_control?: { type: string } }).cache_control,
+    );
+    // First two should have NO cache_control; the last (advisor) carries it.
+    expect(cacheControls[0]).toBeUndefined();
+    expect(cacheControls[1]).toBeUndefined();
+    expect(cacheControls[2]).toEqual({ type: "ephemeral" });
+  });
 });

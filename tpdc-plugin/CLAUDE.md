@@ -1,6 +1,6 @@
 # TPDC — Technical Product Development Cycle
 
-> **Status:** v0.3.0-alpha.10 (Claude Code plugin + MCP server — feature-complete, awaiting beta validation). The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
+> **Status:** **v0.4.0-alpha.0** — v0.3.0 shipped (form-factor pivot validated via dogfood-004); v0.4 chapter open with **prompt caching** as first capability. The source of truth for architecture is `~/Documents/Claude/Projects/TPDC/VISION.md` in the source repo.
 
 TPDC is an autonomous development workflow that takes a feature request in natural language and produces a PR with CI green. It ships as a **Claude Code plugin** plus an **MCP server** (`tpdc-mcp`). Claude Code orchestrates; TPDC exposes validators + heavy operations as MCP tools and ships skills that instruct Claude Code on how to drive each stage.
 
@@ -37,7 +37,7 @@ Each stage is either:
 | `tpdc_ping` | Health check for the MCP server (plugin setup validation). |
 | `tpdc_validate_intake_artifact` | Validate a candidate IntakeArtifact against the Zod schema. |
 | `tpdc_validate_plan_artifact` | Validate a candidate PlanArtifact against the Zod schema AND semantic invariants (DAG, dependency refs, readiness/steps consistency). |
-| `tpdc_execute` | Creates a git worktree, runs the agentic bash + text_editor + **advisor** loop against the validated plan, captures the diff, commits. Advisor tool (Opus 4.7, server-side, cap 5/run) integrated via beta `advisor-tool-2026-03-01` — Sonnet 4.6 consults Opus mid-call on hard sub-decisions. Returns ExecuteResult JSON. Accepts `existingWorktree` + `failureContext` for fix-mode retries. |
+| `tpdc_execute` | Creates a git worktree, runs the agentic bash + text_editor + **advisor** loop against the validated plan, captures the diff, commits. Advisor tool (Opus 4.7, server-side, cap 5/run) integrated via beta `advisor-tool-2026-03-01`. **Prompt caching** (v0.4) caches the (system + tools) prefix per turn — `cacheReadInputTokens` surfaces on the result; charged at 0.1x base rate, typically 30-50% input savings in 10+ turn runs. Returns ExecuteResult JSON. Accepts `existingWorktree` + `failureContext` for fix-mode retries. |
 | `tpdc_run_tests` | Runs the plan's `testCommands` sequentially in the worktree. Returns per-command (passed/failed/errored + exit + stdout/stderr) + aggregate status. |
 | `tpdc_push` | `git push -u <remote> <branch>` from the worktree. On success, removes the worktree directory (branch ref kept). Force-push-with-lease via `force=true` for auto-fix-CI. |
 | `tpdc_open_pr` | `gh pr create` with title/body rendered from intake + plan + execute + (optional) tests. Returns PR URL + number. Status `gh_missing` if gh CLI is not on PATH. Supports `draft` + `wipReason`. |
@@ -45,12 +45,14 @@ Each stage is either:
 | `tpdc_fetch_ci_logs` | `gh run view --log-failed` for the most recent run on `branch`. Returns tail-preserved log blob (default 8KB cap). Used to feed FailureContext into a fix-mode `tpdc_execute`. |
 | `tpdc_team_meeting` | **D6.** Convenes 2-4 role agents (PM, TechLead, Designer, Engineer) in parallel + Opus moderator synthesis. Returns synthesized answers with role provenance, assumptions to commit to, preserved dissent, consensus boolean, and optional escalateToHuman. ~$0.30 / 60-75s per meeting. Single-shot (no recursion). Use when intake/plan can't converge after 2-3 rounds, or for explicit multi-perspective deliberation. |
 
-## Coming next (beta)
+## Coming next (v0.4 chapter, after alpha.0 prompt caching)
 
-| Item | Notes |
-|---|---|
-| **beta — dogfood-003 smoke** | Real run against `Mtrejo11/inventario-reventa` to validate the form-factor pivot end-to-end. Resurrect the runbook from `docs/dogfood-003-runbook.md`, adapted to the new plugin/MCP surface. |
-| **v0.3.0 final** | Release after beta validates. |
+| Item | Form | Notes |
+|---|---|---|
+| Memory tool | beta `memory_20250818` | `/memories` adapter for multi-session continuity. The platform's "multi-session software dev pattern" matches TPDC. |
+| Observability tool | New MCP tool | `tpdc_show_run_summary` — per-stage cost + advisor fires + wall-clock. Depends on Memory for run-state persistence. |
+| Compaction | beta `compact-2026-01-12` | `pause_after_compaction` for long execute loops. Add when 1M context is felt to be insufficient. |
+| Web search / fetch | GA | Intake/plan research on user-mentioned libs / pasted URLs. |
 
 ## History
 
