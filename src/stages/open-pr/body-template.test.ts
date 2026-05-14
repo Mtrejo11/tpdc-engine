@@ -285,4 +285,75 @@ describe("renderPRBody", () => {
       expect(body).not.toContain("Skipped");
     });
   });
+
+  // alpha.15 hotfix: dogfood-008 surfaced a crash here when the ship skill
+  // forwarded an `execute` object with `usage` (and a few other fields)
+  // missing. The MCP wrapper accepts `execute: z.unknown()` and trusts the
+  // renderer; the renderer used to dereference unconditionally and throw
+  // "Cannot read properties of undefined (reading 'inputTokens')". The
+  // footer now degrades gracefully — these tests pin that behavior.
+  describe("footer resilience against partial execute objects (alpha.15)", () => {
+    it("does NOT throw when execute.usage is missing entirely", () => {
+      const partialExecute = { ...execute } as unknown as Record<string, unknown>;
+      delete partialExecute.usage;
+      expect(() =>
+        renderPRBody({
+          runId: "r-partial",
+          intake,
+          plan,
+          execute: partialExecute as unknown as typeof execute,
+          tests: passingTests,
+        }),
+      ).not.toThrow();
+    });
+
+    it("renders 'usage n/a' in the footer when execute.usage is missing", () => {
+      const partialExecute = { ...execute } as unknown as Record<string, unknown>;
+      delete partialExecute.usage;
+      const body = renderPRBody({
+        runId: "r-partial",
+        intake,
+        plan,
+        execute: partialExecute as unknown as typeof execute,
+        tests: passingTests,
+      });
+      expect(body).toContain("usage n/a");
+      expect(body).not.toContain("NaN");
+      expect(body).not.toContain("undefined");
+    });
+
+    it("substitutes 0 when individual usage counters are missing", () => {
+      const onlyInput = {
+        ...execute,
+        usage: { inputTokens: 12345 } as unknown as typeof execute.usage,
+      };
+      const body = renderPRBody({
+        runId: "r-partial",
+        intake,
+        plan,
+        execute: onlyInput,
+        tests: passingTests,
+      });
+      // Output side missing → renders as 0 instead of crashing or "undefined".
+      expect(body).toContain("12345+0 tokens");
+    });
+
+    it("falls back to '?' when execute.branch / turnCount / toolCallCount are missing", () => {
+      const partial = { ...execute } as unknown as Record<string, unknown>;
+      delete partial.branch;
+      delete partial.turnCount;
+      delete partial.toolCallCount;
+      const body = renderPRBody({
+        runId: "r-partial",
+        intake,
+        plan,
+        execute: partial as unknown as typeof execute,
+        tests: passingTests,
+      });
+      // Three placeholder positions should each render "?" rather than throw.
+      expect(body).toContain("branch `?`");
+      expect(body).toContain("? turn(s)");
+      expect(body).toContain("? tool call(s)");
+    });
+  });
 });

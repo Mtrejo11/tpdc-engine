@@ -1,6 +1,6 @@
 {
   "name": "tpdc",
-  "version": "0.4.0-alpha.14",
+  "version": "0.4.0-alpha.15",
   "description": "Technical Product Development Cycle — Claude Code plugin + MCP server for autonomous feature development. Request to PR with CI green.",
   "author": {
     "name": "TPDC"
